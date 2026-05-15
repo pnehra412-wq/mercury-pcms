@@ -127,6 +127,7 @@ const Ic = ({n,size=16,color="currentColor"}) => {
     sync:<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></>,
     history:<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
     chev:<polyline points="9 18 15 12 9 6"/>,
+    upload:<><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></>,
   };
   return React.createElement("svg",{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",style:{flexShrink:0}},p[n]);
 };
@@ -394,7 +395,81 @@ function MercuryPCMS() {
     const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
     const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
 
-    const TABS=["info","diary","tasks","notes","cnr"];
+    const TABS=["info","diary","tasks","docs","notes","cnr"];
+    const [caseDocs,setCaseDocs]=useState([]);
+    const [docsLoading,setDocsLoading]=useState(false);
+    const fileRef=useRef(null);
+
+    // Load docs for this case from documents table
+    useEffect(()=>{
+      const load=async()=>{
+        setDocsLoading(true);
+        const res=await sbReq("GET",`documents?cino=eq.${encodeURIComponent(c.cino)}&select=*&order=uploaded_at.desc`);
+        if(Array.isArray(res))setCaseDocs(res);
+        setDocsLoading(false);
+      };
+      load();
+    },[c.cino]);
+
+    const fileIcon=name=>{
+      const ext=(name||"").split(".").pop().toLowerCase();
+      if(ext==="pdf") return "📄";
+      if(["doc","docx"].includes(ext)) return "📝";
+      if(["jpg","jpeg","png","gif"].includes(ext)) return "🖼️";
+      return "📎";
+    };
+
+    const formatSize=bytes=>{
+      if(bytes<1024) return bytes+"B";
+      if(bytes<1024*1024) return (bytes/1024).toFixed(1)+"KB";
+      return (bytes/(1024*1024)).toFixed(1)+"MB";
+    };
+
+    const handleUpload=async(files)=>{
+      const arr=Array.from(files);
+      if(!arr.length) return;
+      setSaving(true);
+      notify("⏳ Uploading files…","var(--amber)");
+      let uploaded=0;
+      for(const file of arr){
+        // Store file as base64 in documents table (works without Supabase Storage bucket)
+        const reader=new FileReader();
+        await new Promise(resolve=>{
+          reader.onload=async(e)=>{
+            const base64=e.target.result;
+            const res=await sbReq("POST","documents",{
+              cino:c.cino,
+              name:file.name,
+              size:file.size,
+              mime_type:file.type,
+              file_data:base64,
+              doc_type:"general",
+              uploaded_at:new Date().toISOString()
+            });
+            if(Array.isArray(res)&&res.length>0){setCaseDocs(d=>[res[0],...d]);uploaded++;}
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+      notify(`✅ ${uploaded} file${uploaded>1?"s":""} uploaded permanently`,"var(--teal)");
+      setSaving(false);
+    };
+
+    const deleteDoc=async(id)=>{
+      await sbReq("DELETE",`documents?id=eq.${id}`);
+      setCaseDocs(d=>d.filter(x=>x.id!==id));
+      notify("File deleted","var(--rose)");
+    };
+
+    const openDoc=doc=>{
+      if(doc.file_data){
+        const a=document.createElement("a");
+        a.href=doc.file_data;
+        a.download=doc.name;
+        a.click();
+      }
+    };
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:200,display:"flex",justifyContent:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
         <div style={{width:440,height:"100vh",overflowY:"auto",background:"var(--white)",boxShadow:"-6px 0 32px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",animation:"slideIn 0.25s ease"}}>
@@ -415,9 +490,10 @@ function MercuryPCMS() {
           </div>
           <div style={{display:"flex",borderBottom:"1px solid var(--border)",flexShrink:0,overflowX:"auto"}}>
             {TABS.map(tab=><button key={tab} onClick={()=>setActiveTab(tab)} style={{flex:"none",padding:"8px 12px",border:"none",cursor:"pointer",background:"transparent",fontSize:11,fontWeight:600,color:activeTab===tab?"var(--gold)":"var(--silver)",borderBottom:activeTab===tab?"2px solid var(--gold)":"2px solid transparent",textTransform:"capitalize",whiteSpace:"nowrap"}}>
-              {tab==="diary"?"Hearing Diary":tab}
+              {tab==="diary"?"📅 Diary":tab==="docs"?"📁 Docs":tab==="notes"?"🖊 Notes":tab==="cnr"?"CNR":tab==="info"?"Info":tab}
               {tab==="tasks"&&caseTasks.length>0?` (${caseTasks.length})`:""}
               {tab==="diary"&&caseHistory.length>0?` (${caseHistory.length})`:""}
+              {tab==="docs"&&caseDocs.length>0?` (${caseDocs.length})`:""}
             </button>)}
           </div>
           <div style={{flex:1,overflowY:"auto",padding:"14px 18px"}}>
@@ -483,6 +559,67 @@ function MercuryPCMS() {
                     <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {activeTab==="docs"&&(
+              <div>
+                {/* Upload zone */}
+                <div
+                  style={{border:"2px dashed var(--border)",borderRadius:10,padding:"22px 16px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"all 0.15s"}}
+                  onClick={()=>fileRef.current&&fileRef.current.click()}
+                  onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--gold)";e.currentTarget.style.background="#fffbef";}}
+                  onDragLeave={e=>{e.currentTarget.style.borderColor="";e.currentTarget.style.background="";}}
+                  onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="";e.currentTarget.style.background="";handleUpload(e.dataTransfer.files);}}
+                >
+                  <div style={{fontSize:28,marginBottom:8}}>📁</div>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--ink3)",marginBottom:4}}>Click or Drop Files Here</div>
+                  <div style={{fontSize:11,color:"var(--silver)",marginBottom:12}}>PDF, Word (.doc/.docx), Images — saved permanently to Supabase</div>
+                  {/* Doc type categories */}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginBottom:12}}>
+                    {["Plaint","Written Statement","Evidence","Order","FIR","Vakalatnama","Other"].map(dtype=>(
+                      <span key={dtype} style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:5,padding:"3px 9px",fontSize:11,color:"var(--ink3)",cursor:"pointer"}}>{dtype}</span>
+                    ))}
+                  </div>
+                  {saving
+                    ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spin/><span style={{fontSize:12,color:"var(--amber)"}}>Uploading…</span></div>
+                    :<Btn v="gold" sm onClick={e=>{e.stopPropagation();fileRef.current&&fileRef.current.click();}}><Ic n="upload" size={13}/>Choose Files</Btn>
+                  }
+                  <input ref={fileRef} type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt,.xlsx,.xls" style={{display:"none"}} onChange={e=>handleUpload(e.target.files)}/>
+                </div>
+
+                {/* File list */}
+                {docsLoading&&<div style={{textAlign:"center",padding:20,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spin/><span style={{fontSize:12,color:"var(--silver)"}}>Loading files…</span></div>}
+                {!docsLoading&&caseDocs.length===0&&(
+                  <div style={{textAlign:"center",color:"var(--silver)",fontSize:12,padding:20}}>
+                    No documents yet — upload plaint, WS, evidence, orders etc.
+                  </div>
+                )}
+                {caseDocs.map((doc,i)=>(
+                  <div key={doc.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--paper)",border:"1px solid var(--border)",borderRadius:8,marginBottom:8,animation:`fadeUp 0.2s ease ${i*0.03}s both`}}>
+                    <span style={{fontSize:22,flexShrink:0}}>{fileIcon(doc.name)}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>
+                      <div style={{fontSize:10,color:"var(--silver)",marginTop:2}}>
+                        {formatSize(doc.size)} · {new Date(doc.uploaded_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}
+                      </div>
+                    </div>
+                    {doc.file_data&&(
+                      <button onClick={()=>openDoc(doc)} title="Download" style={{border:"none",background:"var(--teal)18",borderRadius:6,padding:"5px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:11,color:"var(--teal)",fontWeight:600}}>
+                        <Ic n="save" size={13} color="var(--teal)"/>Open
+                      </button>
+                    )}
+                    <button onClick={()=>deleteDoc(doc.id)} title="Delete" style={{border:"none",background:"transparent",cursor:"pointer",padding:4}}>
+                      <Ic n="trash" size={14} color="var(--rose)"/>
+                    </button>
+                  </div>
+                ))}
+
+                {caseDocs.length>0&&(
+                  <div style={{marginTop:8,padding:"8px 12px",background:"#f0fff4",border:"1px solid #86efac",borderRadius:7,fontSize:11,color:"#166534"}}>
+                    ✅ {caseDocs.length} file{caseDocs.length>1?"s":""} stored permanently in Supabase
+                  </div>
+                )}
               </div>
             )}
 
