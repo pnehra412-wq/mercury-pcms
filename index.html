@@ -498,6 +498,7 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
       setTimeout(()=>aiEndRef.current?.scrollIntoView({behavior:"smooth"}),100);
     };
     const saveNote=async()=>{setSaving(true);await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));notify("✅ Notes saved");setSaving(false);};
+    const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
     const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
 
     const TABS=["info","diary","tasks","docs","notes","ai","cnr"];
