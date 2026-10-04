@@ -459,6 +459,8 @@ function MercuryPCMS() {
     const [noteVal,setNoteVal]=useState(c.notes_adv||"");
     const [activeTab,setActiveTab]=useState("info");
     const [saving,setSaving]=useState(false);
+    const [editingParty,setEditingParty]=useState(false);
+    const [partyForm,setPartyForm]=useState({petparty_name:c.petparty_name||"",resparty_name:c.resparty_name||""});
     const [newDate,setNewDate]=useState(c.date_next_list||"");
     const [histForm,setHistForm]=useState({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});
 
@@ -508,6 +510,24 @@ function MercuryPCMS() {
     };
 
     const saveNote=async()=>{setSaving(true);await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));notify("✅ Notes saved");setSaving(false);};
+    const saveParty=async()=>{
+      const petitioner=(partyForm.petparty_name||"").trim();
+      const respondent=(partyForm.resparty_name||"").trim();
+      if(!petitioner){notify("⚠️ Petitioner name cannot be empty","var(--rose)");return;}
+      setSaving(true);
+      const res=await sb.from("cases").update({petparty_name:petitioner,resparty_name:respondent},{cino:c.cino});
+      if(Array.isArray(res)&&res.length>0){
+        const updated={...c,petparty_name:petitioner,resparty_name:respondent};
+        setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,petparty_name:petitioner,resparty_name:respondent}:x));
+        setDetail(updated);
+        setPartyForm({petparty_name:petitioner,resparty_name:respondent});
+        setEditingParty(false);
+        notify("✅ Party names updated","var(--teal)");
+      }else{
+        notify("❌ Could not update party names. Please try again.","var(--rose)");
+      }
+      setSaving(false);
+    };
     const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
     const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
 
@@ -642,7 +662,28 @@ function MercuryPCMS() {
 
             {activeTab==="info"&&(
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {[["Court",c.court_no_desg_name],["Establishment",c.establishment_name],["District",c.district_name],["Type",t.label],["Petitioner",c.petparty_name==="XXXXXXX"?"Confidential":c.petparty_name],["Respondent",c.resparty_name==="XXXXXXX"?"Confidential":c.resparty_name],["Purpose",c.purpose_name],["Next Hearing",fmt(c.date_next_list)]].map(([k,v])=>(
+                <div style={{gridColumn:"1/-1",background:"var(--paper)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--border)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <Lbl c="Parties"/>
+                    {!editingParty&&<Btn sm v="ghost" onClick={()=>{setPartyForm({petparty_name:c.petparty_name||"",resparty_name:c.resparty_name||""});setEditingParty(true);}}><Ic n="save" size={12}/>Edit Parties</Btn>}
+                  </div>
+                  {editingParty ? (
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <div><Lbl c="Petitioner"/><input autoFocus value={partyForm.petparty_name} onChange={e=>setPartyForm(f=>({...f,petparty_name:e.target.value}))} style={iS} placeholder="Petitioner name"/></div>
+                      <div><Lbl c="Respondent"/><input value={partyForm.resparty_name} onChange={e=>setPartyForm(f=>({...f,resparty_name:e.target.value}))} style={iS} placeholder="Respondent name"/></div>
+                      <div style={{gridColumn:"1/-1",display:"flex",justifyContent:"flex-end",gap:7}}>
+                        <Btn sm v="ghost" onClick={()=>setEditingParty(false)}>Cancel</Btn>
+                        <Btn sm v="teal" onClick={saveParty}>{saving?<Spin/>:<Ic n="check" size={12}/>}Save Parties</Btn>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <div><Lbl c="Petitioner"/><div style={{fontSize:12,fontWeight:600,lineHeight:1.4,wordBreak:"break-word"}}>{c.petparty_name==="XXXXXXX"?"Confidential":c.petparty_name||"—"}</div></div>
+                      <div><Lbl c="Respondent"/><div style={{fontSize:12,fontWeight:600,lineHeight:1.4,wordBreak:"break-word"}}>{c.resparty_name==="XXXXXXX"?"Confidential":c.resparty_name||"—"}</div></div>
+                    </div>
+                  )}
+                </div>
+                {[["Court",c.court_no_desg_name],["Establishment",c.establishment_name],["District",c.district_name],["Type",t.label],["Purpose",c.purpose_name],["Next Hearing",fmt(c.date_next_list)]].map(([k,v])=>(
                   <div key={k} style={{background:"var(--paper)",borderRadius:7,padding:"9px 11px",border:"1px solid var(--border)"}}><Lbl c={k}/><div style={{fontSize:12,fontWeight:500,lineHeight:1.4}}>{v}</div></div>
                 ))}
                 {c.note&&<div style={{gridColumn:"1/-1",background:"#fffbef",border:"1px solid var(--gold)40",borderRadius:7,padding:"9px 11px"}}><Lbl c="Note"/><div style={{fontSize:12}}>★ {c.note}</div></div>}
