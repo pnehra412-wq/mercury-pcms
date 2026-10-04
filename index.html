@@ -461,75 +461,51 @@ function MercuryPCMS() {
     const [newDate,setNewDate]=useState(c.date_next_list||"");
     const [histForm,setHistForm]=useState({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});
 
-    const [aiMessages, setAiMessages] = useState([]);
-    const [aiInput, setAiInput] = useState("");
-    const [aiLoading, setAiLoading] = useState(false);
-    const aiEndRef = useRef(null);
+    const [chatLinks, setChatLinks] = useState([]);
+    const [chatLinksLoading, setChatLinksLoading] = useState(false);
+    const [chatProvider, setChatProvider] = useState("ChatGPT");
+    const [chatUrl, setChatUrl] = useState("");
+    const [chatSaving, setChatSaving] = useState(false);
 
-    // Build full case context for AI
-    const buildCaseContext = () => {
-      const taskList = caseTasks.map(t=>`- ${t.title} (Due: ${fmt(t.due)}, ${t.done?"Done":"Pending"}`).join("\n") || "None";
-      const histList = caseHistory.map(h=>`- ${fmt(h.hearing_date)}: ${h.purpose||""} → ${h.outcome||""} | Next: ${fmt(h.next_date)}`).join("\n") || "None";
-      const docList = caseDocs.map(d=>d.name).join(", ") || "None uploaded";
-      return `You are a legal AI assistant helping Advocate Pardeep, a practicing advocate in Haryana courts.
-
-CASE DETAILS:
-- CNR: ${c.cino}
-- Parties: ${partyLabel(c)}
-- Court: ${c.court_no_desg_name}, ${c.establishment_name}
-- District: ${c.district_name}
-- Case Type: ${tm(c.type_name).label} (${c.type_name})
-- Purpose/Stage: ${c.purpose_name}
-- Next Hearing: ${fmt(c.date_next_list)}
-${c.note ? `- Note: ${c.note}` : ""}
-
-ADVOCATE'S NOTES:
-${c.notes_adv || "None"}
-
-HEARING HISTORY:
-${histList}
-
-PENDING TASKS:
-${taskList}
-
-DOCUMENTS ON RECORD:
-${docList}
-
-You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, and Haryana-specific legal practices. Answer in clear, practical terms as a senior legal colleague. When drafting documents, use proper legal language. Always consider the specific court and jurisdiction.`;
+    const loadChatLinks = async () => {
+      setChatLinksLoading(true);
+      try {
+        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`);
+        const j = await r.json();
+        if(r.ok && Array.isArray(j.chats)) setChatLinks(j.chats);
+      } catch(e) { console.error("loadChatLinks",e); }
+      setChatLinksLoading(false);
     };
 
-    const sendAiMessage = async () => {
-      if(!aiInput.trim() || aiLoading) return;
-      const userMsg = aiInput.trim();
-      setAiInput("");
-      setAiMessages(m=>[...m, {role:"user", content:userMsg}]);
-      setAiLoading(true);
-      setTimeout(()=>aiEndRef.current?.scrollIntoView({behavior:"smooth"}),100);
+    useEffect(() => {
+      if(activeTab==="ai") loadChatLinks();
+    }, [activeTab,c.cino]);
+
+    const saveChatLink = async () => {
+      if(!chatUrl.trim() || chatSaving) return;
+      setChatSaving(true);
       try {
-        const context = buildCaseContext();
-        const history = aiMessages.slice(-6); // last 6 messages for context
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const r = await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats", {
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({
-            model:"claude-sonnet-4-20250514",
-            max_tokens:1000,
-            system: context,
-            messages:[
-              ...history,
-              {role:"user", content:userMsg}
-            ]
+            cino:c.cino,
+            provider:chatProvider,
+            title:`${chatProvider} — ${partyLabel(c)}`,
+            chat_url:chatUrl.trim()
           })
         });
-        const data = await response.json();
-        const reply = data.content?.[0]?.text || "Sorry, could not get a response.";
-        setAiMessages(m=>[...m, {role:"assistant", content:reply}]);
+        const j = await r.json();
+        if(!r.ok) throw new Error(j.error||"Could not save chat link");
+        setChatUrl("");
+        await loadChatLinks();
+        notify(`✅ ${chatProvider} chat linked to this case`,"var(--teal)");
       } catch(e) {
-        setAiMessages(m=>[...m, {role:"assistant", content:"⚠️ Connection error. Please try again."}]);
+        notify("⚠️ "+(e.message||"Could not save chat link"),"var(--rose)");
       }
-      setAiLoading(false);
-      setTimeout(()=>aiEndRef.current?.scrollIntoView({behavior:"smooth"}),100);
+      setChatSaving(false);
     };
+
     const saveNote=async()=>{setSaving(true);await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));notify("✅ Notes saved");setSaving(false);};
     const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
     const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
@@ -844,89 +820,47 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
             )}
 
             {activeTab==="ai"&&(
-              <div className="ai-height" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 280px)"}}>
-                {/* Header */}
-                <div style={{background:"linear-gradient(135deg,var(--ink),#1c2333)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"var(--gold-lt)",marginBottom:4}}>🤖 AI Legal Assistant</div>
+              <div className="ai-height" style={{display:"flex",flexDirection:"column",gap:12,height:"calc(100vh - 280px)"}}>
+                <div style={{background:"linear-gradient(135deg,var(--ink),#1c2333)",borderRadius:10,padding:"14px"}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"var(--gold-lt)",marginBottom:4}}>⚖️ AI Workspace</div>
                   <div style={{fontSize:11,color:"var(--silver)",lineHeight:1.5}}>
-                    Full case context loaded — ask anything about this case
-                  </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>
-                    {[
-                      "Draft adjournment application",
-                      "Analyse this stage",
-                      "Prepare cross-examination",
-                      "What arguments to make",
-                      "Draft bail application",
-                      "Summarize case status",
-                    ].map(q=>(
-                      <button key={q} onClick={()=>setAiInput(q)} style={{background:"rgba(201,168,76,0.15)",border:"1px solid rgba(201,168,76,0.3)",borderRadius:5,padding:"3px 8px",fontSize:10,color:"var(--gold-lt)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-                        {q}
-                      </button>
-                    ))}
+                    Your existing AI conversations for this case. Open the relevant chat and continue your legal work there.
                   </div>
                 </div>
 
-                {/* Messages */}
-                <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,marginBottom:10}}>
-                  {aiMessages.length===0&&(
-                    <div style={{textAlign:"center",padding:"20px 10px",color:"var(--silver)"}}>
-                      <div style={{fontSize:28,marginBottom:8}}>⚖️</div>
-                      <div style={{fontSize:12.5,fontWeight:600,color:"var(--ink3)",marginBottom:4}}>Case context loaded</div>
-                      <div style={{fontSize:11,lineHeight:1.6}}>
-                        I know all details of <b>{partyLabel(c)}</b> including CNR, court, stage, hearing history, tasks and your notes.<br/>Ask me anything.
-                      </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {chatLinksLoading&&<div style={{padding:14,textAlign:"center",color:"var(--silver)",fontSize:11}}>Loading case AI chats…</div>}
+                  {!chatLinksLoading && chatLinks.length===0 && (
+                    <div style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:9,padding:14,color:"var(--silver)",fontSize:11.5,lineHeight:1.6}}>
+                      No ChatGPT or Claude conversation is linked to this case yet.
                     </div>
                   )}
-                  {aiMessages.map((msg,i)=>(
-                    <div key={i} style={{
-                      display:"flex",justifyContent:msg.role==="user"?"flex-end":"flex-start"
-                    }}>
-                      <div style={{
-                        maxWidth:"85%",padding:"10px 13px",borderRadius:10,fontSize:12.5,lineHeight:1.6,
-                        background:msg.role==="user"?"var(--gold)":"var(--paper)",
-                        color:msg.role==="user"?"var(--ink)":"var(--ink3)",
-                        border:msg.role==="assistant"?"1px solid var(--border)":"none",
-                        whiteSpace:"pre-wrap",wordBreak:"break-word"
-                      }}>
-                        {msg.content}
+                  {chatLinks.map(chat=>(
+                    <div key={chat.id||chat.provider} style={{display:"flex",alignItems:"center",gap:10,background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:"11px 12px",boxShadow:"var(--shadow)"}}>
+                      <div style={{width:34,height:34,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",background:chat.provider==="ChatGPT"?"#e8f5ed":"#f1eaff",fontSize:18}}>
+                        {chat.provider==="ChatGPT"?"🤖":"🟣"}
                       </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{chat.provider}</div>
+                        <div style={{fontSize:10,color:"var(--silver)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{chat.title||"Case AI Chat"}</div>
+                      </div>
+                      <button onClick={()=>window.open(chat.chat_url,"_blank","noopener,noreferrer")} style={{border:"none",background:"var(--ink)",color:"var(--gold-lt)",borderRadius:7,padding:"8px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                        Open Chat →
+                      </button>
                     </div>
                   ))}
-                  {aiLoading&&(
-                    <div style={{display:"flex",justifyContent:"flex-start"}}>
-                      <div style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px",display:"flex",gap:6,alignItems:"center"}}>
-                        <Spin/><span style={{fontSize:11.5,color:"var(--silver)"}}>Thinking…</span>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={aiEndRef}/>
                 </div>
 
-                {/* Input */}
-                <div style={{display:"flex",gap:8,alignItems:"flex-end",flexShrink:0}}>
-                  <textarea
-                    value={aiInput}
-                    onChange={e=>setAiInput(e.target.value)}
-                    onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAiMessage();}}}
-                    placeholder="Ask about this case… (Enter to send, Shift+Enter for new line)"
-                    rows={2}
-                    style={{...iS,flex:1,resize:"none",lineHeight:1.5,fontSize:12.5}}
-                  />
-                  <button onClick={sendAiMessage} disabled={aiLoading||!aiInput.trim()} style={{
-                    background:aiInput.trim()?"var(--gold)":"var(--mist)",color:"var(--ink)",
-                    border:"none",borderRadius:8,padding:"10px 14px",cursor:aiInput.trim()?"pointer":"default",
-                    fontWeight:700,fontSize:13,flexShrink:0,height:52,
-                    display:"flex",alignItems:"center",gap:5,fontFamily:"'DM Sans',sans-serif"
-                  }}>
-                    {aiLoading?<Spin/>:"Send ↑"}
-                  </button>
+                <div style={{marginTop:"auto",background:"var(--paper)",border:"1px solid var(--border)",borderRadius:9,padding:12}}>
+                  <div style={{fontSize:10,fontWeight:700,color:"var(--silver)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>Link an existing case chat</div>
+                  <div style={{display:"flex",gap:7,marginBottom:7}}>
+                    <select value={chatProvider} onChange={e=>setChatProvider(e.target.value)} style={{...iS,width:105}}>
+                      <option>ChatGPT</option><option>Claude</option>
+                    </select>
+                    <input value={chatUrl} onChange={e=>setChatUrl(e.target.value)} style={{...iS,flex:1}} placeholder="Paste ChatGPT or Claude share link"/>
+                  </div>
+                  <Btn sm v="teal" onClick={saveChatLink}>{chatSaving?<Spin/>:<Ic n="link" size={12}/>}Save Chat Link</Btn>
                 </div>
-                {aiMessages.length>0&&(
-                  <button onClick={()=>setAiMessages([])} style={{marginTop:6,background:"transparent",border:"none",fontSize:10.5,color:"var(--silver)",cursor:"pointer",textAlign:"center",width:"100%"}}>
-                    Clear conversation
-                  </button>
-                )}
               </div>
             )}
 
