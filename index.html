@@ -232,19 +232,29 @@ function MercuryPCMS() {
     setLoading(true);
     try {
       const [c,t,f,h] = await Promise.all([
-        sb.from("cases").select("*"),
+        // Cases are loaded through a server-side PostgREST filter so Decided
+        // matters are never downloaded into the app at all.
+        (async()=>{
+          const qs="select=*&or=(case_status.neq.Decided,case_status.is.null)&order=date_next_list.asc";
+          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+          });
+          const j=await r.json();
+          if(!r.ok) throw new Error(j?.message||"Could not load active cases");
+          return Array.isArray(j)?j:[];
+        })(),
         sb.from("tasks").select("*"),
         sb.from("fees").select("*"),
         sb.from("hearing_history").select("*"),
       ]);
       if(Array.isArray(c) && c.length > 0) {
-        const activeCases=c.filter(x=>String(x.case_status||"Pending").toLowerCase()!=="decided");
-        setCases(activeCases);
-        notify(`✅ ${activeCases.length} pending/active cases loaded`,"var(--teal)");
+        setCases(c);
+        notify(`✅ ${c.length} pending/active cases loaded`,"var(--teal)");
       } else if(Array.isArray(c) && c.length === 0) {
-        notify("⚠️ Database connected but no cases found — check Supabase","var(--amber)");
+        notify("⚠️ No pending/active cases found","var(--amber)");
+        setCases([]);
       } else {
-        notify("❌ Could not read cases — check API key in Supabase","var(--rose)");
+        notify("❌ Could not read active cases — check Supabase","var(--rose)");
       }
       if(Array.isArray(t)) setTasks(t);
       if(Array.isArray(f)) setFees(f);
