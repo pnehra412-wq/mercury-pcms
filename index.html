@@ -1068,8 +1068,21 @@ function MercuryPCMS() {
       const loadCalendarCases=async()=>{
         setCalendarLoading(true); setCalendarError("");
         try{
-          const rows=await sb.from("cases").select("*").gte("date_next_list",firstDate).lt("date_next_list",nextDate);
-          const active=(Array.isArray(rows)?rows:[]).filter(c=>String(c.case_status||"Pending").trim().toLowerCase()!=="decided");
+          // IMPORTANT: fetch only the displayed month. The lightweight sb wrapper
+          // does not implement gte/lt chaining, so the calendar uses PostgREST
+          // directly rather than downloading the entire case table.
+          const qs=[
+            "select=*",
+            "date_next_list=gte."+encodeURIComponent(firstDate),
+            "date_next_list=lt."+encodeURIComponent(nextDate),
+            "order=date_next_list.asc,court_no_desg_name.asc,petparty_name.asc"
+          ].join("&");
+          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+          });
+          const j=await r.json();
+          if(!r.ok) throw new Error(j?.message||j?.hint||"Calendar query failed");
+          const active=(Array.isArray(j)?j:[]).filter(c=>String(c.case_status||"Pending").trim().toLowerCase()!=="decided");
           if(!cancelled) setCalendarCases(active);
         }catch(e){
           if(!cancelled){setCalendarCases([]);setCalendarError(e.message||"Could not load cause list");}
