@@ -232,14 +232,15 @@ function MercuryPCMS() {
     setLoading(true);
     try {
       const [c,t,f,h] = await Promise.all([
-        sb.from("cases").select("*"),
+        sb.from("cases").select("*").neq("case_status","Decided"),
         sb.from("tasks").select("*"),
         sb.from("fees").select("*"),
         sb.from("hearing_history").select("*"),
       ]);
       if(Array.isArray(c) && c.length > 0) {
-        setCases(c);
-        notify(`✅ ${c.length} cases loaded`,"var(--teal)");
+        const activeCases=c.filter(x=>String(x.case_status||"Pending").toLowerCase()!=="decided");
+        setCases(activeCases);
+        notify(`✅ ${activeCases.length} pending/active cases loaded`,"var(--teal)");
       } else if(Array.isArray(c) && c.length === 0) {
         notify("⚠️ Database connected but no cases found — check Supabase","var(--amber)");
       } else {
@@ -1057,8 +1058,16 @@ function MercuryPCMS() {
     const y=calMo.getFullYear(),m=calMo.getMonth();
     const firstDay=new Date(y,m,1).getDay();
     const daysInMo=new Date(y,m+1,0).getDate();
+    const normalizeDate=d=>d?String(d).slice(0,10):"";
     const byDate={};
-    cases.forEach(c=>{const d=c.date_next_list;if(d&&new Date(d).getFullYear()===y&&new Date(d).getMonth()===m){if(!byDate[d])byDate[d]=[];byDate[d].push(c);}});
+    cases.forEach(c=>{
+      const d=normalizeDate(c.date_next_list);
+      if(d&&d.slice(0,7)===y+"-"+String(m+1).padStart(2,"0")){
+        if(!byDate[d])byDate[d]=[];
+        byDate[d].push(c);
+      }
+    });
+    Object.values(byDate).forEach(list=>list.sort((a,b)=>partyLabel(a).localeCompare(partyLabel(b))));
     const cells=[];
     for(let i=0;i<firstDay;i++)cells.push(null);
     for(let d=1;d<=daysInMo;d++)cells.push(d);
@@ -1072,7 +1081,8 @@ function MercuryPCMS() {
             <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>🏛️ Karnal</Btn>
             <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/ambala","_blank","noopener,noreferrer")}>🏛️ Ambala</Btn>
             <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m-1,1))}>← Prev</Btn>
-            <span style={{padding:"4px 10px",fontWeight:600,fontSize:13}}>{calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}</span>
+            <Btn sm v="gold" onClick={()=>setCalMo(new Date())}>Today</Btn>
+            <span style={{padding:"4px 10px",fontWeight:600,fontSize:13,minWidth:125,textAlign:"center"}}>{calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}</span>
             <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m+1,1))}>Next →</Btn>
           </div>
         </div>
@@ -1285,9 +1295,9 @@ function MercuryPCMS() {
   };
 
   const AddCaseModal = () => {
-    const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:""});
+    const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:"",case_status:"Pending"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert(form);if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
+    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,case_status:"Pending"});if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddCase(false)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:520,padding:22,boxShadow:"var(--shadow-lg)",maxHeight:"90vh",overflowY:"auto"}}>
