@@ -235,7 +235,7 @@ function MercuryPCMS() {
         // Cases are loaded through a server-side PostgREST filter so Decided
         // matters are never downloaded into the app at all.
         (async()=>{
-          const qs="select=*&or=(case_status.neq.Decided,case_status.is.null)&order=date_next_list.asc";
+          const qs="select=*&case_status=eq.Pending&order=date_next_list.asc";
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
             headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
           });
@@ -249,7 +249,7 @@ function MercuryPCMS() {
       ]);
       if(Array.isArray(c) && c.length > 0) {
         setCases(c);
-        notify(`✅ ${c.length} pending/active cases loaded`,"var(--teal)");
+        notify(`✅ ${c.length} pending cases loaded`,"var(--teal)");
       } else if(Array.isArray(c) && c.length === 0) {
         notify("⚠️ No pending/active cases found","var(--amber)");
         setCases([]);
