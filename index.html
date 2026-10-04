@@ -232,7 +232,7 @@ function MercuryPCMS() {
     setLoading(true);
     try {
       const [c,t,f,h] = await Promise.all([
-        sb.from("cases").select("*").neq("case_status","Decided"),
+        sb.from("cases").select("*"),
         sb.from("tasks").select("*"),
         sb.from("fees").select("*"),
         sb.from("hearing_history").select("*"),
@@ -1055,12 +1055,35 @@ function MercuryPCMS() {
 
   // ── CALENDAR ─────────────────────────────────────────────────────────────
   const CalendarView = () => {
+    const [calendarCases,setCalendarCases]=useState([]);
+    const [calendarLoading,setCalendarLoading]=useState(false);
+    const [calendarError,setCalendarError]=useState("");
     const y=calMo.getFullYear(),m=calMo.getMonth();
+    const firstDate=`${y}-${String(m+1).padStart(2,"0")}-01`;
+    const nextMonth=new Date(y,m+1,1);
+    const nextDate=`${nextMonth.getFullYear()}-${String(nextMonth.getMonth()+1).padStart(2,"0")}-01`;
+
+    useEffect(()=>{
+      let cancelled=false;
+      const loadCalendarCases=async()=>{
+        setCalendarLoading(true); setCalendarError("");
+        try{
+          const rows=await sb.from("cases").select("*").gte("date_next_list",firstDate).lt("date_next_list",nextDate);
+          const active=(Array.isArray(rows)?rows:[]).filter(c=>String(c.case_status||"Pending").trim().toLowerCase()!=="decided");
+          if(!cancelled) setCalendarCases(active);
+        }catch(e){
+          if(!cancelled){setCalendarCases([]);setCalendarError(e.message||"Could not load cause list");}
+        }finally{if(!cancelled)setCalendarLoading(false);}
+      };
+      loadCalendarCases();
+      return()=>{cancelled=true};
+    },[firstDate,nextDate]);
+
     const firstDay=new Date(y,m,1).getDay();
     const daysInMo=new Date(y,m+1,0).getDate();
     const normalizeDate=d=>d?String(d).slice(0,10):"";
     const byDate={};
-    cases.forEach(c=>{
+    calendarCases.forEach(c=>{
       const d=normalizeDate(c.date_next_list);
       if(d&&d.slice(0,7)===y+"-"+String(m+1).padStart(2,"0")){
         if(!byDate[d])byDate[d]=[];
@@ -1086,6 +1109,9 @@ function MercuryPCMS() {
             <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m+1,1))}>Next →</Btn>
           </div>
         </div>
+        {calendarError&&<Card p={10} style={{border:"1px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:11}}>⚠️ Cause list could not be loaded: {calendarError}</Card>}
+        {calendarLoading&&<Card p={10} style={{fontSize:11,color:"var(--silver)"}}>⏳ Loading hearings for {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}…</Card>}
+        {!calendarLoading&&!calendarError&&calendarCases.length===0&&<Card p={12} style={{textAlign:"center",color:"var(--silver)",fontSize:11}}>No pending/active cases are scheduled in {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}.</Card>}
         <Card p={0} style={{overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--border)"}}>
             {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",padding:"6px 2px",fontSize:9.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}
