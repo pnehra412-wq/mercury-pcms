@@ -33,6 +33,39 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0.3)}50%{box-shadow:0 0 0 6px rgba(192,57,43,0)}}
 .fade-up{animation:fadeUp 0.28s ease both}
+/* ── Mercury mobile workspace ─────────────────────────────────────────── */
+.mercury-mobile-nav{display:none}
+.mercury-sidebar{width:175px;min-width:175px}
+.mercury-topbar{min-height:52px}
+.mercury-main-pad{padding:14px 18px}
+.mercury-case-sheet{width:440px}
+@media (max-width: 700px){
+  html,body,#root{height:100%;width:100%;overflow:hidden}
+  body{padding-bottom:env(safe-area-inset-bottom,0px)}
+  .mercury-sidebar{display:none !important}
+  .mercury-topbar{padding:8px 10px !important;min-height:48px !important;gap:7px !important}
+  .mercury-topbar .mercury-search{max-width:none !important;width:100% !important;padding:7px 9px !important}
+  .mercury-topbar .mercury-status-text,.mercury-topbar .mercury-today{display:none !important}
+  .mercury-main-pad{padding:10px 10px calc(76px + env(safe-area-inset-bottom,0px)) !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch}
+  .mercury-main-pad > *{min-width:0}
+  .mercury-mobile-nav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:500;height:64px;padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px));background:rgba(20,27,39,.98);border-top:1px solid rgba(255,255,255,.10);box-shadow:0 -6px 24px rgba(0,0,0,.16);gap:4px}
+  .mercury-mobile-nav button{flex:1;border:0;background:transparent;color:#8b9cb0;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;min-width:0;touch-action:manipulation}
+  .mercury-mobile-nav button.active{color:#e8c96a;background:rgba(201,168,76,.12)}
+  .mercury-mobile-nav .nav-count{font-size:8px;background:#d4891a;color:#fff;border-radius:8px;padding:0 4px;margin-left:2px}
+  .mercury-case-sheet{width:100% !important;max-width:none !important;height:100dvh !important;height:100vh !important;border-radius:0 !important}
+  .mercury-case-sheet .case-sheet-scroll{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px)) !important}
+  #root [style*="grid-template-columns"]{grid-template-columns:1fr !important}
+  #root [style*="grid-template-columns"] > *{grid-column:auto !important}
+  .mercury-case-sheet .case-tabs{position:sticky;top:0;z-index:3;background:var(--white)}
+  .mercury-case-sheet .case-tabs button{padding:10px 13px !important;min-height:42px}
+  .mercury-case-sheet .case-header-title{font-size:14px !important}
+  .mercury-case-sheet .case-header{padding:12px 12px 9px !important}
+  .mercury-case-sheet .case-sheet-scroll{padding:12px !important}
+  .mercury-case-sheet .ai-height{height:calc(100dvh - 250px) !important}
+  button{touch-action:manipulation}
+}
+@media (min-width:701px) and (max-width:900px){.mercury-sidebar{width:150px;min-width:150px}.mercury-main-pad{padding:10px 12px}.mercury-case-sheet{width:400px}}
+
 input,select,textarea,button{font-family:'DM Sans',sans-serif}
 </style>
 </head>
@@ -603,11 +636,11 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
       }
     };
     return (
-      <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:200,display:"flex",justifyContent:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-        <div style={{width:440,height:"100vh",overflowY:"auto",background:"var(--white)",boxShadow:"-6px 0 32px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",animation:"slideIn 0.25s ease"}}>
-          <div style={{padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
+      <div className="mercury-case-overlay" style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:200,display:"flex",justifyContent:"flex-end"}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div className="mercury-case-sheet" style={{width:440,height:"100vh",overflowY:"auto",background:"var(--white)",boxShadow:"-6px 0 32px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",animation:"slideIn 0.25s ease"}}>
+          <div className="case-header" style={{padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",flexShrink:0}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-              <div style={{flex:1,paddingRight:10}}>
+              <div className="case-header-title" style={{flex:1,paddingRight:10}}>
                 <div style={{fontSize:9.5,color:"var(--silver)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>{c.district_name} · {c.establishment_name.split(",")[0]}</div>
                 <div style={{fontSize:15,fontWeight:700,lineHeight:1.35,fontFamily:"'Playfair Display',serif"}}>{partyLabel(c)}</div>
               </div>
@@ -620,7 +653,7 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
               <Bdg label={fmt(c.date_next_list)} color="var(--silver)"/>
             </div>
           </div>
-          <div style={{display:"flex",borderBottom:"1px solid var(--border)",flexShrink:0,overflowX:"auto"}}>
+          <div className="case-tabs" style={{display:"flex",borderBottom:"1px solid var(--border)",flexShrink:0,overflowX:"auto"}}>
             {TABS.map(tab=><button key={tab} onClick={()=>setActiveTab(tab)} style={{flex:"none",padding:"8px 12px",border:"none",cursor:"pointer",background:activeTab===tab?"var(--ink)":"transparent",fontSize:11,fontWeight:600,color:activeTab===tab?(tab==="ai"?"#e8c96a":"var(--gold)"):"var(--silver)",borderBottom:activeTab===tab?"2px solid var(--gold)":"2px solid transparent",textTransform:"capitalize",whiteSpace:"nowrap"}}>
               {tab==="diary"?"📅 Diary":tab==="docs"?"📁 Docs":tab==="notes"?"🖊 Notes":tab==="cnr"?"CNR":tab==="ai"?"🤖 AI":tab==="info"?"Info":tab}
               {tab==="tasks"&&caseTasks.length>0?` (${caseTasks.length})`:""}
@@ -628,7 +661,7 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
               {tab==="docs"&&caseDocs.length>0?` (${caseDocs.length})`:""}
             </button>)}
           </div>
-          <div style={{flex:1,overflowY:"auto",padding:"14px 18px"}}>
+          <div className="case-sheet-scroll" style={{flex:1,overflowY:"auto",padding:"14px 18px"}}>
 
             {activeTab==="info"&&(
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -811,7 +844,7 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
             )}
 
             {activeTab==="ai"&&(
-              <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 280px)"}}>
+              <div className="ai-height" style={{display:"flex",flexDirection:"column",height:"calc(100vh - 280px)"}}>
                 {/* Header */}
                 <div style={{background:"linear-gradient(135deg,var(--ink),#1c2333)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
                   <div style={{fontSize:13,fontWeight:700,color:"var(--gold-lt)",marginBottom:4}}>🤖 AI Legal Assistant</div>
@@ -1226,7 +1259,7 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
   return (
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--paper)"}}>
       {/* Sidebar */}
-      <nav style={{width:175,minWidth:175,flexShrink:0,background:"#141b27",display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
+      <nav className="mercury-sidebar" style={{width:175,minWidth:175,flexShrink:0,background:"#141b27",display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
         <div style={{padding:"14px 14px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:18,background:"linear-gradient(135deg,#c9a84c,#e8c96a)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>⚖ MERCURY</div>
           <div style={{fontSize:9,color:"#8b9cb0",letterSpacing:"0.12em",textTransform:"uppercase",marginTop:3}}>PCMS · Adv. Pardeep</div>
@@ -1256,8 +1289,8 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
 
       {/* Main */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{background:"var(--white)",borderBottom:"1px solid var(--border)",padding:"10px 18px",display:"flex",alignItems:"center",gap:12,flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{flex:1,maxWidth:340,display:"flex",alignItems:"center",gap:7,background:"var(--paper)",border:"1px solid var(--border)",borderRadius:7,padding:"6px 11px"}}>
+        <div className="mercury-topbar" style={{background:"var(--white)",borderBottom:"1px solid var(--border)",padding:"10px 18px",display:"flex",alignItems:"center",gap:12,flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div className="mercury-search" style={{flex:1,maxWidth:340,display:"flex",alignItems:"center",gap:7,background:"var(--paper)",border:"1px solid var(--border)",borderRadius:7,padding:"6px 11px"}}>
             <Ic n="search" size={13} color="var(--silver)"/>
             <input style={{border:"none",background:"transparent",outline:"none",fontSize:12.5,color:"var(--ink)",flex:1}} placeholder="Search CNR, party, type…" value={searchQ} onChange={e=>{setSearchQ(e.target.value);if(e.target.value)setView("cases");}}/>
             {searchQ&&<button onClick={()=>setSearchQ("")} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="x" size={12} color="var(--silver)"/></button>}
@@ -1269,12 +1302,12 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
           )}
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <div style={{width:7,height:7,borderRadius:"50%",background:loading?"#f59e0b":"#22c55e"}}/>
-            <span style={{fontSize:10.5,color:"var(--silver)"}}>{loading?"Syncing…":"Supabase ✓"}</span>
+            <span className="mercury-status-text" style={{fontSize:10.5,color:"var(--silver)"}}>{loading?"Syncing…":"Supabase ✓"}</span>
           </div>
-          <div style={{fontSize:11,color:"var(--silver)",whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
+          <div className="mercury-today" style={{fontSize:11,color:"var(--silver)",whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
         </div>
 
-        <div style={{flex:1,overflow:"hidden",padding:"14px 18px",display:"flex",flexDirection:"column"}}>
+        <div className="mercury-main-pad" style={{flex:1,overflow:"hidden",padding:"14px 18px",display:"flex",flexDirection:"column"}}>
           {view==="dashboard"  &&<Dashboard/>}
           {view==="cases"      &&<CasesView/>}
           {view==="calendar"   &&<CalendarView/>}
@@ -1287,6 +1320,16 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
       {addTask&&<AddTaskModal/>}
       {addFee&&<AddFeeModal/>}
       {addCase&&<AddCaseModal/>}
+
+
+      {/* Mobile navigation */}
+      <nav className="mercury-mobile-nav" aria-label="Mercury mobile navigation">
+        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Calendar"},{id:"cases",icon:"search",label:"Search"},{id:"cases",icon:"list",label:"Cases"}].map((n,i)=>(
+          <button key={i} className={view===n.id && (i===0 || i===1 || i===3) ? "active":""} onClick={()=>{setView(n.id);setDetail(null);if(i===2){setView("cases");setTimeout(()=>document.querySelector(".mercury-search input")?.focus(),60);}}}>
+            <Ic n={n.icon} size={18}/><span>{n.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {toast&&<div style={{position:"fixed",bottom:18,right:18,background:"#1c2333",color:"#fff",padding:"10px 16px",borderRadius:9,fontSize:12.5,fontWeight:500,boxShadow:"var(--shadow-lg)",borderLeft:`4px solid ${toast.color}`,animation:"fadeUp 0.25s ease",zIndex:400}}>{toast.msg}</div>}
     </div>
