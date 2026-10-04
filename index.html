@@ -870,6 +870,17 @@ function MercuryPCMS() {
                   </div>
                 </div>
 
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <button onClick={()=>{window.location.href="https://chatgpt.com/"}} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
+                    <div style={{fontSize:12,fontWeight:800}}>🤖 ChatGPT</div>
+                    <div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>Open ChatGPT for this case</div>
+                  </button>
+                  <button onClick={()=>{window.location.href="https://claude.ai/new"}} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
+                    <div style={{fontSize:12,fontWeight:800}}>🟣 Claude</div>
+                    <div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>Open Claude for this case</div>
+                  </button>
+                </div>
+
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {chatLinksLoading&&<div style={{padding:14,textAlign:"center",color:"var(--silver)",fontSize:11}}>Loading case AI chats…</div>}
                   {!chatLinksLoading && chatLinks.length===0 && (
@@ -886,7 +897,7 @@ function MercuryPCMS() {
                         <div style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{chat.provider}</div>
                         <div style={{fontSize:10,color:"var(--silver)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{chat.title||"Case AI Chat"}</div>
                       </div>
-                      <button onClick={()=>window.open(chat.chat_url,"_blank","noopener,noreferrer")} style={{border:"none",background:"var(--ink)",color:"var(--gold-lt)",borderRadius:7,padding:"8px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                      <button onClick={()=>{window.location.href=chat.chat_url}} style={{border:"none",background:"var(--ink)",color:"var(--gold-lt)",borderRadius:7,padding:"8px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
                         Open Chat →
                       </button>
                     </div>
