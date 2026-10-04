@@ -568,12 +568,38 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
       notify("File deleted","var(--rose)");
     };
 
-    const openDoc=doc=>{
-      if(doc.file_data){
-        const a=document.createElement("a");
-        a.href=doc.file_data;
-        a.download=doc.name;
-        a.click();
+    const openDoc=async doc=>{
+      try{
+        if(doc.file_data){
+          const a=document.createElement("a");
+          a.href=doc.file_data;
+          a.download=doc.name||"document";
+          a.target="_blank";
+          a.rel="noopener";
+          a.click();
+          return;
+        }
+        if(doc.storage_bucket&&doc.storage_path){
+          notify("⏳ Opening document…","var(--amber)");
+          const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/get-document-url",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({document_id:doc.id})
+          });
+          const j=await r.json();
+          if(!r.ok||!j.url) throw new Error(j.error||"Could not create document link");
+          const a=document.createElement("a");
+          a.href=j.url;
+          a.target="_blank";
+          a.rel="noopener";
+          a.click();
+          notify("✅ Document opened","var(--teal)");
+          return;
+        }
+        notify("⚠️ This document has no accessible file path","var(--rose)");
+      }catch(e){
+        console.error("openDoc",e);
+        notify("⚠️ Could not open document: "+(e.message||"Unknown error"),"var(--rose)");
       }
     };
     return (
@@ -757,8 +783,8 @@ You have full knowledge of Indian law, CPC, CrPC, BNSS, Evidence Act, IPC, BNS, 
                         {formatSize(doc.size)} · {new Date(doc.uploaded_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}
                       </div>
                     </div>
-                    {doc.file_data&&(
-                      <button onClick={()=>openDoc(doc)} title="Download" style={{border:"none",background:"var(--teal)18",borderRadius:6,padding:"5px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:11,color:"var(--teal)",fontWeight:600}}>
+                    {(doc.file_data||doc.storage_path)&&(
+                      <button onClick={()=>openDoc(doc)} title="Open document" style={{border:"none",background:"var(--teal)18",borderRadius:6,padding:"5px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:11,color:"var(--teal)",fontWeight:600}}>
                         <Ic n="save" size={13} color="var(--teal)"/>Open
                       </button>
                     )}
