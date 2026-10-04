@@ -534,6 +534,7 @@ function MercuryPCMS() {
     const TABS=["info","diary","tasks","docs","notes","ai","cnr"];
     const [caseDocs,setCaseDocs]=useState([]);
     const [docsLoading,setDocsLoading]=useState(false);
+    const [selectedDocIds,setSelectedDocIds]=useState([]);
     const fileRef=useRef(null);
 
     // Load docs for this case from documents table
@@ -546,6 +547,59 @@ function MercuryPCMS() {
       };
       load();
     },[c.cino]);
+
+    useEffect(()=>{ setSelectedDocIds([]); },[c.cino]);
+
+    const toggleDoc=docId=>{
+      setSelectedDocIds(ids=>ids.includes(docId)?ids.filter(x=>x!==docId):[...ids,docId]);
+    };
+
+    const selectAllDocs=()=>{
+      setSelectedDocIds(caseDocs.map(d=>d.id).filter(Boolean));
+    };
+
+    const clearSelectedDocs=()=>setSelectedDocIds([]);
+
+    const shareSelectedDocuments=async(ids=selectedDocIds)=>{
+      const chosen=caseDocs.filter(d=>ids.includes(d.id));
+      if(!chosen.length){notify("⚠️ Select at least one document","var(--rose)");return;}
+      try{
+        notify("⏳ Preparing "+chosen.length+" document"+(chosen.length>1?"s":"")+" for sharing…","var(--amber)");
+        const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/prepare-document-share",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({document_ids:chosen.map(d=>d.id)})
+        });
+        const j=await r.json();
+        if(!r.ok||!Array.isArray(j.documents)) throw new Error(j.error||"Could not prepare documents");
+        const ready=j.documents.filter(x=>x.url);
+        if(!ready.length) throw new Error("No documents were available for sharing");
+        const failed=j.documents.filter(x=>!x.url);
+        if(window.MercuryAndroid&&typeof window.MercuryAndroid.shareDocuments==="function"){
+          window.MercuryAndroid.shareDocuments(JSON.stringify(ready.map(x=>({url:x.url,name:x.name||"document.pdf"}))));
+          if(failed.length) notify("⚠️ "+failed.length+" document(s) could not be prepared","var(--amber)");
+          else notify("✓ Opening Android Share…","var(--teal)");
+        }else if(navigator.share){
+          const urls=ready.map(x=>x.url).join("\n");
+          await navigator.share({title:"Mercury case documents",text:"Mercury case documents:\n"+urls});
+        }else{
+          ready.forEach(x=>window.open(x.url,"_blank","noopener,noreferrer"));
+          notify("✓ Documents opened. Choose your destination from the browser.","var(--teal)");
+        }
+      }catch(e){
+        if(e?.name==="AbortError") return;
+        console.error("shareSelectedDocuments",e);
+        notify("⚠️ Could not share documents: "+(e.message||"Unknown error"),"var(--rose)");
+      }
+    };
+
+    const openExternal=async url=>{
+      if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function"){
+        window.MercuryAndroid.openExternal(url);
+      }else{
+        window.open(url,"_blank","noopener,noreferrer");
+      }
+    };
 
     const fileIcon=name=>{
       const ext=(name||"").split(".").pop().toLowerCase();
@@ -604,9 +658,7 @@ function MercuryPCMS() {
           const a=document.createElement("a");
           a.href=doc.file_data;
           a.download=doc.name||"document";
-          a.target="_blank";
-          a.rel="noopener";
-          a.click();
+          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function") window.MercuryAndroid.openExternal(a.href); else { a.target="_blank"; a.rel="noopener"; a.click(); }
           return;
         }
         if(doc.storage_bucket&&doc.storage_path){
@@ -618,11 +670,7 @@ function MercuryPCMS() {
           });
           const j=await r.json();
           if(!r.ok||!j.url) throw new Error(j.error||"Could not create document link");
-          const a=document.createElement("a");
-          a.href=j.url;
-          a.target="_blank";
-          a.rel="noopener";
-          a.click();
+          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function") window.MercuryAndroid.openExternal(j.url); else { const a=document.createElement("a"); a.href=j.url; a.target="_blank"; a.rel="noopener"; a.click(); }
           notify("✅ Document opened","var(--teal)");
           return;
         }
@@ -819,6 +867,16 @@ function MercuryPCMS() {
                 </div>
 
                 {/* File list */}
+                {caseDocs.length>0&&(
+                  <div style={{display:"flex",gap:7,alignItems:"center",justifyContent:"space-between",background:"var(--ink)",color:"var(--white)",borderRadius:8,padding:"9px 10px",marginBottom:9}}>
+                    <div style={{fontSize:11,fontWeight:700}}>{selectedDocIds.length} selected</div>
+                    <div style={{display:"flex",gap:5}}>
+                      <button onClick={selectAllDocs} style={{border:"1px solid #ffffff35",background:"transparent",color:"var(--gold-lt)",borderRadius:5,padding:"5px 7px",fontSize:10,cursor:"pointer"}}>Select All</button>
+                      <button onClick={clearSelectedDocs} style={{border:"1px solid #ffffff35",background:"transparent",color:"var(--silver)",borderRadius:5,padding:"5px 7px",fontSize:10,cursor:"pointer"}}>Clear</button>
+                      <button onClick={()=>shareSelectedDocuments()} disabled={!selectedDocIds.length} style={{border:"none",background:selectedDocIds.length?"var(--gold)":"#ffffff18",color:selectedDocIds.length?"var(--ink)":"#777",borderRadius:5,padding:"5px 9px",fontSize:10,fontWeight:800,cursor:selectedDocIds.length?"pointer":"default"}}>📤 Share Selected</button>
+                    </div>
+                  </div>
+                )}
                 {docsLoading&&<div style={{textAlign:"center",padding:20,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spin/><span style={{fontSize:12,color:"var(--silver)"}}>Loading files…</span></div>}
                 {!docsLoading&&caseDocs.length===0&&(
                   <div style={{textAlign:"center",color:"var(--silver)",fontSize:12,padding:20}}>
@@ -826,7 +884,8 @@ function MercuryPCMS() {
                   </div>
                 )}
                 {caseDocs.map((doc,i)=>(
-                  <div key={doc.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--paper)",border:"1px solid var(--border)",borderRadius:8,marginBottom:8,animation:`fadeUp 0.2s ease ${i*0.03}s both`}}>
+                  <div key={doc.id||i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 10px",background:"var(--paper)",border:selectedDocIds.includes(doc.id)?"1px solid var(--gold)":"1px solid var(--border)",borderRadius:8,marginBottom:8,animation:`fadeUp 0.2s ease ${i*0.03}s both`}}>
+                    <input type="checkbox" checked={selectedDocIds.includes(doc.id)} onChange={()=>toggleDoc(doc.id)} style={{width:16,height:16,accentColor:"var(--gold)",flexShrink:0}}/>
                     <span style={{fontSize:22,flexShrink:0}}>{fileIcon(doc.name)}</span>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>
@@ -871,14 +930,23 @@ function MercuryPCMS() {
                 </div>
 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <button onClick={()=>{window.location.href="https://chatgpt.com/"}} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
+                  <button onClick={()=>openExternal("https://chatgpt.com/")} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
                     <div style={{fontSize:12,fontWeight:800}}>🤖 ChatGPT</div>
                     <div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>Open ChatGPT for this case</div>
                   </button>
-                  <button onClick={()=>{window.location.href="https://claude.ai/new"}} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
+                  <button onClick={()=>openExternal("https://claude.ai/new")} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
                     <div style={{fontSize:12,fontWeight:800}}>🟣 Claude</div>
                     <div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>Open Claude for this case</div>
                   </button>
+                </div>
+
+                <div style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:9,padding:12}}>
+                  <div style={{fontSize:11.5,fontWeight:800,color:"var(--ink3)",marginBottom:8}}>📤 Send this case's documents to any app</div>
+                  <div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Select documents in the Docs tab, or send the entire case file directly to the Android Share sheet.</div>
+                  <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                    <Btn sm v="gold" onClick={()=>{selectAllDocs();setTimeout(()=>shareSelectedDocuments(caseDocs.map(d=>d.id).filter(Boolean)),50);}} disabled={!caseDocs.length}>📚 Share Entire Case</Btn>
+                    <Btn sm v="teal" onClick={()=>setActiveTab("docs")}>📁 Choose Documents</Btn>
+                  </div>
                 </div>
 
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -897,7 +965,7 @@ function MercuryPCMS() {
                         <div style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{chat.provider}</div>
                         <div style={{fontSize:10,color:"var(--silver)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{chat.title||"Case AI Chat"}</div>
                       </div>
-                      <button onClick={()=>{window.location.href=chat.chat_url}} style={{border:"none",background:"var(--ink)",color:"var(--gold-lt)",borderRadius:7,padding:"8px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                      <button onClick={()=>openExternal(chat.chat_url)} style={{border:"none",background:"var(--ink)",color:"var(--gold-lt)",borderRadius:7,padding:"8px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
                         Open Chat →
                       </button>
                     </div>
