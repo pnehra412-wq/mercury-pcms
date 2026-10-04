@@ -669,7 +669,7 @@ function MercuryPCMS() {
           const a=document.createElement("a");
           a.href=doc.file_data;
           a.download=doc.name||"document";
-          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function") window.MercuryAndroid.openExternal(a.href); else { a.target="_blank"; a.rel="noopener"; a.click(); }
+          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openDocument==="function") window.MercuryAndroid.openDocument(a.href,doc.name||"document.pdf"); else { a.target="_blank"; a.rel="noopener"; a.click(); }
           return;
         }
         if(doc.storage_bucket&&doc.storage_path){
@@ -681,7 +681,7 @@ function MercuryPCMS() {
           });
           const j=await r.json();
           if(!r.ok||!j.url) throw new Error(j.error||"Could not create document link");
-          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function") window.MercuryAndroid.openExternal(j.url); else { const a=document.createElement("a"); a.href=j.url; a.target="_blank"; a.rel="noopener"; a.click(); }
+          if(window.MercuryAndroid&&typeof window.MercuryAndroid.openDocument==="function") window.MercuryAndroid.openDocument(j.url,doc.name||"document.pdf"); else { const a=document.createElement("a"); a.href=j.url; a.target="_blank"; a.rel="noopener"; a.click(); }
           notify("✅ Document opened","var(--teal)");
           return;
         }
