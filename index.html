@@ -604,12 +604,22 @@ function MercuryPCMS() {
       }
     };
 
-    const openExternal=async url=>{
+    const openExternal=url=>{
+      if(!url) return;
       if(window.MercuryAndroid&&typeof window.MercuryAndroid.openExternal==="function"){
         window.MercuryAndroid.openExternal(url);
-      }else{
-        window.open(url,"_blank","noopener,noreferrer");
+        return;
       }
+      // Use a real user-initiated anchor click on Windows/web so popup blockers
+      // do not prevent ChatGPT/Claude from opening.
+      const a=document.createElement("a");
+      a.href=url;
+      a.target="_blank";
+      a.rel="noopener noreferrer";
+      a.style.display="none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     };
 
     const fileIcon=name=>{
