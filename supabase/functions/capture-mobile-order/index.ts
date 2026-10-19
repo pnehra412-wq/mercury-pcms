@@ -337,7 +337,8 @@ Deno.serve(async (req) => {
         court:match.establishment_name
       } : null
     });
-  } catch (e) {
-    return json(req, { error:String(e?.message || e) },500);
+  } catch {
+    console.error("capture-mobile-order: request failed");
+    return json(req, { error:"Could not process the shared court order" },500);
   }
 });
