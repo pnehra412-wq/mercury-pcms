@@ -37,7 +37,7 @@ const SB_KEY=${JSON.stringify(PUBLIC_KEY)};
 const supa=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 let session=null;
 const login=document.getElementById("login"),loginError=document.getElementById("login-error");
-function showLogin(message){login.style.display="block";loginError.textContent=message||"Sign in to view your cases.";}
+function showLogin(message){cases=[];document.getElementById("list").innerHTML="";document.getElementById("stats").innerHTML="";login.style.display="block";loginError.textContent=message||"Sign in to view your cases.";}
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function iso(d){return d.toISOString().slice(0,10)}
 function fmt(s){if(!s)return "—";let d=new Date(s+"T00:00:00");return d.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}
