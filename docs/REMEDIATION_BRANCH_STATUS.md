@@ -17,7 +17,7 @@ This is a branch-only preparation effort. No production schema, data, Storage co
 - Session restoration occurs before mounting the case-management app.
 - The custom `sbReq` wrapper uses the authenticated access token as `Authorization`; the anon key remains only in `apikey`.
 - Updated both direct REST case fetches to use the session token.
-- Updated the `case-ai-chats`, `prepare-document-share`, and `get-document-url` calls to send the session token.
+- Updated the `case-ai-chats`, `prepare-document-share`, and `get-document-url` calls to send both the project `apikey` and the session bearer token.
 - Public sign-up is deliberately absent. The first owner account must be created securely through Supabase Auth administration.
 
 ### Shared Edge Function authentication
@@ -38,7 +38,7 @@ These source drafts require `owner_id` on the relevant tables and scope their da
 
 The document-share draft verifies uploaded bytes against the source before updating the document reference and clearing legacy inline data. It uses the private `case-files` bucket and 15-minute signed URLs. The current live database has no non-null `file_data`, but the frontend can create new inline-file records, so the migration path still needs regression testing.
 
-The mobile capture draft now requires an authenticated session, scopes duplicate detection and case/document updates by owner, and forwards the caller's session token to the analysis function. The capture page is also updated to require sign-in and to retain the shared file if a request fails.
+The mobile capture draft now requires an authenticated session, scopes duplicate detection and case/document updates by owner, and forwards the caller's session token plus the public project key to the analysis function. The capture page is also updated to require sign-in and to retain the shared file if a request fails.
 
 ### Office dashboard and publishing source prepared
 
@@ -75,7 +75,7 @@ The live deployed versions remain unchanged. Configure the owner ID after the in
 - Confirmed the branch frontend contains the Auth gate.
 - Confirmed the frontend no longer uses the anon key as an `Authorization: Bearer` value.
 - Confirmed both direct REST requests use `SB_ACCESS_TOKEN`.
-- Confirmed the three direct private Edge Function callers include `Authorization: Bearer <session token>`.
+- Confirmed the three direct private Edge Function callers include both the project `apikey` and `Authorization: Bearer <session token>`.
 - Confirmed the shared helper calls Supabase Auth `getUser(token)`.
 - Confirmed the new branch source no longer contains the prior hard-coded office or web-publishing token literals.
 - Confirmed the mobile capture page preserves the shared file until the server confirms success and defers asynchronous work out of the Auth state-change callback.
