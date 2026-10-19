@@ -83,6 +83,7 @@ Deno.serve(async (req: Request) => {
     const hearing = {
       cino: caseRow.cino,
       owner_id: auth.user.id,
+      source_document_analysis_id: analysis.id,
       hearing_date: analysis.order_date,
       purpose: analysis.next_purpose,
       outcome: analysis.outcome,
@@ -91,8 +92,20 @@ Deno.serve(async (req: Request) => {
     };
     const { error: hearingError } = await auth.admin.from("hearing_history").insert(hearing);
     if (hearingError) {
-      console.error("confirm-document-analysis: hearing history insert failed");
-      return json(req, { error: "Could not record the hearing history" }, 500);
+      if (hearingError.code !== "23505") {
+        console.error("confirm-document-analysis: hearing history insert failed");
+        return json(req, { error: "Could not record the hearing history" }, 500);
+      }
+      const { data: existingHearing, error: duplicateCheckError } = await auth.admin
+        .from("hearing_history")
+        .select("id")
+        .eq("source_document_analysis_id", analysis.id)
+        .eq("owner_id", auth.user.id)
+        .maybeSingle();
+      if (duplicateCheckError || !existingHearing) {
+        console.error("confirm-document-analysis: duplicate hearing could not be verified");
+        return json(req, { error: "Could not verify hearing history status" }, 500);
+      }
     }
 
     const caseUpdate: Record<string, unknown> = {
@@ -115,17 +128,31 @@ Deno.serve(async (req: Request) => {
     }
 
     if (analysis.advocate_action && analysis.advocate_action !== "No specific action stated.") {
-      const { error: taskError } = await auth.admin.from("tasks").insert({
+      const task = {
         cino: caseRow.cino,
         owner_id: auth.user.id,
+        source_document_analysis_id: analysis.id,
         title: "Review action from order: " + String(analysis.advocate_action).slice(0, 180),
         due: analysis.next_date,
         priority: "High",
         done: false,
-      });
+      };
+      const { error: taskError } = await auth.admin.from("tasks").insert(task);
       if (taskError) {
-        console.error("confirm-document-analysis: task insert failed");
-        return json(req, { error: "Case was updated, but the follow-up task could not be created" }, 500);
+        if (taskError.code !== "23505") {
+          console.error("confirm-document-analysis: task insert failed");
+          return json(req, { error: "Case was updated, but the follow-up task could not be created" }, 500);
+        }
+        const { data: existingTask, error: duplicateTaskError } = await auth.admin
+          .from("tasks")
+          .select("id")
+          .eq("source_document_analysis_id", analysis.id)
+          .eq("owner_id", auth.user.id)
+          .maybeSingle();
+        if (duplicateTaskError || !existingTask) {
+          console.error("confirm-document-analysis: duplicate task could not be verified");
+          return json(req, { error: "Could not verify follow-up task status" }, 500);
+        }
       }
     }
 
