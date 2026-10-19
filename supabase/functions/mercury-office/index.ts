@@ -33,7 +33,7 @@ header{background:#111827;color:white;padding:18px 20px;position:sticky;top:0;z-
 <script>
 let cases=[];
 const SB_URL="https://hmtcnatqowokeyrdjujq.supabase.co";
-const SB_KEY=\${JSON.stringify(PUBLIC_KEY)};
+const SB_KEY=${JSON.stringify(PUBLIC_KEY)};
 const supa=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 let session=null;
 const login=document.getElementById("login"),loginError=document.getElementById("login-error");
