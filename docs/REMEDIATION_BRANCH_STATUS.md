@@ -60,7 +60,7 @@ The live deployed versions remain unchanged. Configure the owner ID after the in
 
 ## Still unresolved
 
-1. **Schema migration:** add and backfill `owner_id` on all application tables, enforce ownership policies, revoke anonymous access, add the appropriate authenticated grants, and make the two office views security-invoker. Preserve the current rows and the three unlinked documents/one unlinked analysis row. The migration is not written or applied yet.
+1. **Schema migration:** add and backfill `owner_id` on all application tables, enforce owner-consistent relationships, revoke anonymous access, add the appropriate authenticated grants, and make the two office views security-invoker. Also add the unique `source_document_analysis_id` references on `hearing_history` and `tasks` required for idempotent order confirmation. Preserve the current rows and the three unlinked documents/one unlinked analysis row. The migration is not written or applied yet.
 2. **Initial owner account:** there are zero Auth users. Do not invent an owner UUID or place credentials in GitHub/chat. Create the account through Supabase Auth administration and verify the intended owner.
 3. **Isolated test environment:** no Supabase development branch exists. Branch creation may incur compute charges; none was created.
 4. **Backups:** verify database restoreability and separately recoverable Storage bytes before production changes.
