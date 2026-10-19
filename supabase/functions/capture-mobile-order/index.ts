@@ -173,12 +173,12 @@ Deno.serve(async (req) => {
           latest_order_document_id: documentId,
           latest_order_action: analysisBody?.purpose || null
         };
-        await db.from("cases").update(caseUpdate).eq("cino", cino);
+        await db.from("cases").update(caseUpdate).eq("cino", cino).eq("owner_id", auth.user.id);
         await db.from("documents").update({
           cino,
           processing_status:"AI Complete - Review",
           review_status:"needs_review"
-        }).eq("id", documentId);
+        }).eq("id", documentId).eq("owner_id", auth.user.id);
       }
     }
     return json(req, {
@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
       const result = await extractText(pdf, { mergePages:true });
       extracted = String(result.text || "").slice(0, 500000);
     } catch (e) {
-      await db.from("documents").update({ processing_status:"Extraction Failed", extracted_text:String(e) }).eq("id",documentId);
+      await db.from("documents").update({ processing_status:"Extraction Failed", extracted_text:"Text extraction failed" }).eq("id",documentId).eq("owner_id", auth.user.id);
       return json(req, { ok:true, document_id:documentId, processing_status:"Extraction Failed", error:"Could not extract text. The PDF may be scanned/image-only." });
     }
 
