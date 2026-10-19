@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       const analyzerUrl = url + "/functions/v1/analyze-court-document";
       const analyzed = await fetch(analyzerUrl, {
         method:"POST",
-        headers:{ "Content-Type":"application/json", "Authorization": req.headers.get("Authorization") || "" },
+        headers:{ "Content-Type":"application/json", "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "", "Authorization": req.headers.get("Authorization") || "" },
         body:JSON.stringify({ document_id:old.data.id })
       });
       const analysisBody = await analyzed.json().catch(()=>({}));
@@ -154,6 +154,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "",
         "Authorization": req.headers.get("Authorization") || ""
       },
       body: JSON.stringify({ document_id: documentId })
