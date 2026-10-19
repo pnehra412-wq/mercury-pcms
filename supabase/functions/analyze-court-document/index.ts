@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
       ai_summary: analysis.crux || null,
       processing_status:"AI Complete - Review",
       review_status:"needs_review"
-    }).eq("id",documentId);
+    }).eq("id",documentId).eq("owner_id",auth.user.id);
 
     return Response.json({
       ok:true, document_id:documentId, analysis_id:saved.id,
