@@ -15,7 +15,7 @@ Scope: read-only production inspection; no production changes made.
 - No production SQL, grants, RLS policies, views, Storage objects, or Edge Functions were changed.
 - A dedicated GitHub remediation branch was created from `phase-0-safe-foundation`.
 - No isolated Supabase development branch exists. Creating one may incur hourly compute charges and has not been done.
-- A previous audit note reported that the Supabase Dashboard showed no listed database backups. A current recoverable database backup and separate Storage-byte recovery point have not been independently verified. Production deployment remains blocked until recovery is confirmed.
+- The user reports taking a backup. This session has not independently verified that the database backup can be restored, nor a separate recoverable copy of Storage object bytes. Production deployment remains blocked until recovery is confirmed.
 
 ## 2. Live database baseline
 
