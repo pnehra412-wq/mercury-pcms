@@ -94,9 +94,11 @@ Deno.serve(async (req) => {
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return json(req, { error: "file required" }, 400);
-    if (file.size > 25 * 1024 * 1024) return json(req, { error: "PDF exceeds 25 MB" }, 413);
+    if (file.size < 5 || file.size > 25 * 1024 * 1024) return json(req, { error: "PDF must be between 5 bytes and 25 MB" }, 413);
+    if (file.type && file.type !== "application/pdf") return json(req, { error: "Only PDF files are accepted" }, 415);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!new TextDecoder().decode(bytes.slice(0, 1024)).includes("%PDF-")) return json(req, { error: "The uploaded file is not a valid PDF" }, 415);
     const dig = await crypto.subtle.digest("SHA-256", bytes);
     const fingerprint = Array.from(new Uint8Array(dig)).map(b => b.toString(16).padStart(2,"0")).join("");
 
