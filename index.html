@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.0/babel.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js" crossorigin></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -90,14 +91,18 @@ const { useState, useEffect, useMemo, useRef } = React;
 const SB_URL = "https://hmtcnatqowokeyrdjujq.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdGNuYXRxb3dva2V5cmRqdWpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNzY0NDYsImV4cCI6MjA5Mzk1MjQ0Nn0.7ClED1zmFuAJoQ7bXIg6DrQ4hlddrqPcfvGB0SiT0fo";
 
-// Get the legacy anon key from Supabase — needed for REST API
-// The sb_publishable key is for the new JS client only
-// We use it in the Authorization header as Bearer token
+// The public project key identifies the project; protected requests use the user's Auth token.
+const sbAuth = window.supabase.createClient(SB_URL, SB_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+let SB_ACCESS_TOKEN = null;
+
 const sbReq = (method, path, body=null) => new Promise(resolve => {
+  if (!SB_ACCESS_TOKEN) { resolve([]); return; }
   const xhr = new XMLHttpRequest();
   xhr.open(method, `${SB_URL}/rest/v1/${path}`);
   xhr.setRequestHeader("apikey", SB_KEY);
-  xhr.setRequestHeader("Authorization", `Bearer ${SB_KEY}`);
+  xhr.setRequestHeader("Authorization", `Bearer ${SB_ACCESS_TOKEN}`);
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.setRequestHeader("Accept", "application/json");
   if(method==="POST") xhr.setRequestHeader("Prefer","return=representation,resolution=merge-duplicates");
@@ -238,7 +243,7 @@ function MercuryPCMS() {
         (async()=>{
           const qs="select=*&case_status=eq.Pending&order=date_next_list.asc";
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_ACCESS_TOKEN,Accept:"application/json"}
           });
           const j=await r.json();
           if(!r.ok) throw new Error(j?.message||"Could not load active cases");
@@ -485,7 +490,7 @@ function MercuryPCMS() {
     const loadChatLinks = async () => {
       setChatLinksLoading(true);
       try {
-        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`);
+        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`, { headers: { "Authorization": `Bearer ${SB_ACCESS_TOKEN}` } });
         const j = await r.json();
         if(r.ok && Array.isArray(j.chats)) setChatLinks(j.chats);
       } catch(e) { console.error("loadChatLinks",e); }
@@ -502,7 +507,7 @@ function MercuryPCMS() {
       try {
         const r = await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats", {
           method:"POST",
-          headers:{"Content-Type":"application/json"},
+          headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
           body:JSON.stringify({
             cino:c.cino,
             provider:chatProvider,
@@ -579,7 +584,7 @@ function MercuryPCMS() {
         notify("⏳ Preparing "+chosen.length+" document"+(chosen.length>1?"s":"")+" for sharing…","var(--amber)");
         const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/prepare-document-share",{
           method:"POST",
-          headers:{"Content-Type":"application/json"},
+          headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
           body:JSON.stringify({document_ids:chosen.map(d=>d.id)})
         });
         const j=await r.json();
@@ -687,7 +692,7 @@ function MercuryPCMS() {
           notify("⏳ Opening document…","var(--amber)");
           const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/get-document-url",{
             method:"POST",
-            headers:{"Content-Type":"application/json"},
+            headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
             body:JSON.stringify({document_id:doc.id})
           });
           const j=await r.json();
@@ -1099,7 +1104,7 @@ function MercuryPCMS() {
             "order=date_next_list.asc,court_no_desg_name.asc,petparty_name.asc"
           ].join("&");
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_ACCESS_TOKEN,Accept:"application/json"}
           });
           const j=await r.json();
           if(!r.ok) throw new Error(j?.message||j?.hint||"Calendar query failed");
@@ -1461,7 +1466,76 @@ function MercuryPCMS() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MercuryPCMS));
+function MercuryAuthGate() {
+  const [session, setSession] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    sbAuth.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!mounted) return;
+      const current = sessionError ? null : (data?.session || null);
+      SB_ACCESS_TOKEN = current?.access_token || null;
+      setSession(current);
+      setReady(true);
+    });
+    const { data: { subscription } } = sbAuth.auth.onAuthStateChange((_event, current) => {
+      SB_ACCESS_TOKEN = current?.access_token || null;
+      setSession(current);
+      setReady(true);
+    });
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, []);
+
+  const signIn = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError("");
+    try {
+      const { data, error: signInError } = await sbAuth.auth.signInWithPassword({ email: email.trim(), password });
+      if (signInError || !data?.session) setError("Sign-in failed. Check your credentials and whether the account is verified.");
+      else { SB_ACCESS_TOKEN = data.session.access_token; setSession(data.session); setPassword(""); }
+    } catch (_e) {
+      setError("Sign-in could not be completed. Check your connection and try again.");
+    } finally { setBusy(false); }
+  };
+
+  const signOut = async () => {
+    setError("");
+    const { error: signOutError } = await sbAuth.auth.signOut();
+    if (signOutError) { setError("Sign-out could not be completed. Please retry before leaving this device."); return; }
+    SB_ACCESS_TOKEN = null; setSession(null); setPassword("");
+  };
+
+  if (!ready) return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0d1117",color:"#e8c96a",fontFamily:"DM Sans,sans-serif"}}>Restoring secure session…</div>;
+  if (!session || !SB_ACCESS_TOKEN) return (
+    <div style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:20,background:"#0d1117",fontFamily:"DM Sans,sans-serif"}}>
+      <form onSubmit={signIn} style={{width:"min(420px,100%)",padding:28,background:"#18202d",border:"1px solid #344054",borderRadius:16,color:"#f0f2f5",boxShadow:"0 20px 60px #0008"}}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:".16em",textTransform:"uppercase",color:"#c9a84c",marginBottom:10}}>Mercury PCMS</div>
+        <h1 style={{fontSize:25,margin:"0 0 8px"}}>Sign in securely</h1>
+        <p style={{fontSize:13,lineHeight:1.55,color:"#aeb9c8",margin:"0 0 22px"}}>Use your Mercury account to access case records and documents. Public sign-up is not enabled here.</p>
+        <label style={{display:"block",fontSize:12,color:"#c8d3e0",marginBottom:6}} htmlFor="mercury-auth-email">Email</label>
+        <input id="mercury-auth-email" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} style={{width:"100%",padding:"11px 12px",borderRadius:7,border:"1px solid #445064",background:"#0d1117",color:"#fff",fontSize:14,marginBottom:14}} />
+        <label style={{display:"block",fontSize:12,color:"#c8d3e0",marginBottom:6}} htmlFor="mercury-auth-password">Password</label>
+        <input id="mercury-auth-password" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} style={{width:"100%",padding:"11px 12px",borderRadius:7,border:"1px solid #445064",background:"#0d1117",color:"#fff",fontSize:14,marginBottom:16}} />
+        {error && <div role="alert" style={{fontSize:12,color:"#ff8b83",marginBottom:14,lineHeight:1.45}}>{error}</div>}
+        <button type="submit" disabled={busy} style={{width:"100%",padding:12,border:0,borderRadius:7,background:busy?"#74643b":"#c9a84c",color:"#0d1117",fontWeight:700,fontSize:14,cursor:busy?"wait":"pointer"}}>{busy?"Signing in…":"Sign in"}</button>
+        <p style={{fontSize:11,color:"#8b9cb0",lineHeight:1.5,margin:"16px 0 0"}}>For first-time setup, create the owner account through Supabase Auth administration before using this sign-in screen.</p>
+      </form>
+    </div>
+  );
+  return <div style={{height:"100%",width:"100%"}}>
+    <button type="button" onClick={signOut} style={{position:"fixed",right:12,top:10,zIndex:1000,padding:"6px 10px",border:"1px solid #c9a84c",borderRadius:6,background:"#0d1117",color:"#e8c96a",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sign out</button>
+    {error && <div role="alert" style={{position:"fixed",top:42,right:12,zIndex:1001,background:"#7f1d1d",color:"#fff",padding:8,borderRadius:6,fontSize:12}}>{error}</div>}
+    <MercuryPCMS />
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MercuryAuthGate));
 </script>
 </body>
 </html>
