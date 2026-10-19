@@ -56,7 +56,7 @@ The live deployed versions remain unchanged. Configure the owner ID after the in
 - `fees` uses text `cino` and has no `case_id`; it currently has zero rows.
 - Current row counts remain: cases 158, tasks 1, hearing_history 2, documents 7, document_analysis 5, case_ai_chats 0, case_contacts 0, case_issues 0, case_notes 0, court_watch 54, fees 0.
 - Storage currently contains 8 objects in private `case-files` and 3 root-level objects in public `mercury-web`.
-- Previous audit notes reported no listed database backups. Neither a recoverable database restore nor separate Storage-byte recovery has been verified in this work.
+- The user reports taking a backup. Neither a recoverable database restore nor a separate Storage-byte recovery copy has been independently verified in this work.
 
 ## Still unresolved
 
