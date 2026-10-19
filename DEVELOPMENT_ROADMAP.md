@@ -59,7 +59,12 @@ Improve the existing Mercury PCMS application in place. Preserve the current Pos
 6. AI outputs are editable, traceable, and never automatically filed or sent.
 7. Rollback instructions exist before production deployment.
 
-## Current execution status
-- A development branch has been created for safe preparatory work.
-- No production data, schema, RLS policies, Storage objects, or Edge Functions have been changed by this roadmap commit.
-- Production implementation is gated on confirming and verifying a recovery point, because a directly verifiable database/Storage export is not available through the current connected actions.
+## Current execution status (updated 2026-10-19)
+- Development branch: `phase-0-safe-foundation`.
+- Read-only live inspection confirms the previous baseline still holds: 158 cases, 1 task, 2 hearing-history rows, 7 documents, 5 document-analysis rows, and 54 court-watch rows. The `case-files` bucket is already private and contains 8 objects; `mercury-web` contains 3 objects.
+- Added `docs/DEEPSEEK_HANDOFF_REVIEW.md`, which checks the supplied single-user SQL against the actual schema and current deployed Edge Function sources.
+- The proposed DeepSeek migration is not ready to run: actual primary keys are bigint (so the draft reminder UUID foreign keys are incompatible); the app uses a custom REST wrapper without a Supabase Auth session; and direct Edge Function callers omit Authorization.
+- Current read-only findings remain: 2 SECURITY DEFINER views, broad public RLS policies on cases/tasks/hearing_history/documents, 7 RLS-enabled tables without policies, and service-role Edge Functions with `verify_jwt=false` and no visible per-resource JWT authorization in the reviewed functions.
+- No production data, schema, RLS policies, grants, views, Storage objects, or Edge Functions have been changed by this work.
+- The user reports having taken a backup. Database recovery has not been independently verified through the connected tools, and separate Storage-byte recovery remains a release gate.
+- Next: map all app/function access paths and design a schema-matched authenticated request model; test security patches on a non-production environment before any production change.
