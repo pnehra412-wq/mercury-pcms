@@ -490,7 +490,7 @@ function MercuryPCMS() {
     const loadChatLinks = async () => {
       setChatLinksLoading(true);
       try {
-        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`, { headers: { "Authorization": `Bearer ${SB_ACCESS_TOKEN}` } });
+        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`, { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_ACCESS_TOKEN}` } });
         const j = await r.json();
         if(r.ok && Array.isArray(j.chats)) setChatLinks(j.chats);
       } catch(e) { console.error("loadChatLinks",e); }
@@ -507,7 +507,7 @@ function MercuryPCMS() {
       try {
         const r = await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats", {
           method:"POST",
-          headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
+          headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
           body:JSON.stringify({
             cino:c.cino,
             provider:chatProvider,
@@ -584,7 +584,7 @@ function MercuryPCMS() {
         notify("⏳ Preparing "+chosen.length+" document"+(chosen.length>1?"s":"")+" for sharing…","var(--amber)");
         const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/prepare-document-share",{
           method:"POST",
-          headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
+          headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
           body:JSON.stringify({document_ids:chosen.map(d=>d.id)})
         });
         const j=await r.json();
@@ -692,7 +692,7 @@ function MercuryPCMS() {
           notify("⏳ Opening document…","var(--amber)");
           const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/get-document-url",{
             method:"POST",
-            headers:{"Content-Type":"application/json","Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
+            headers:{"Content-Type":"application/json","apikey":SB_KEY,"Authorization":`Bearer ${SB_ACCESS_TOKEN}`},
             body:JSON.stringify({document_id:doc.id})
           });
           const j=await r.json();
