@@ -56,3 +56,16 @@ The user supplied a proposed single-user secure-foundation plan from a separate 
 ## Current status
 
 This review was based on connected read-only project inspection and GitHub source reads. No production SQL, RLS policy, grant, view, Storage object, or Edge Function was changed by this review.
+
+
+## Additional live Edge Function / privilege verification
+
+A second read-only inspection retrieved the currently deployed function sources and queried current grants:
+
+- `get-document-url`: active, `verify_jwt=false`; uses the service-role client to select documents and sign Storage URLs for 3,600 seconds. The source checks an allowlisted Origin but does not validate the caller's JWT or authorize the requested document for a user. The frontend calls it without Authorization.
+- `prepare-document-share`: active, `verify_jwt=false`; CORS is `*`; uses service-role access to read caller-supplied document IDs, issue signed URLs, and migrate legacy inline `file_data` to Storage while setting `file_data = null`. This endpoint has data-changing behaviour, so an authorization patch must preserve legitimate migration use and include tests.
+- `case-ai-chats`: active, `verify_jwt=false`; uses the service role to read/write case chat links based on a supplied CNR and checks Origin only. The frontend calls it without Authorization.
+- Storage object inventory by counts only: 8 objects in `case-files` (all have nested paths), 3 objects in `mercury-web` (root paths). Object names were not copied into this note.
+- The current role-grant query shows broad grants to `anon` and `authenticated` on the reviewed application tables and both views. RLS policies—not the public key—are currently the principal row filter, and some policies are `true` for public roles.
+
+These findings increase the urgency of the security work. They do **not** authorize an immediate production deployment: first establish a working auth migration and confirm separate Storage recovery, then test the exact caller paths and denied-resource cases in non-production.
