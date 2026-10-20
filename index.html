@@ -237,6 +237,7 @@ function MercuryPCMS() {
   const [tasks, setTasks]     = useState([]);
   const [fees, setFees]       = useState([]);
   const [history, setHistory] = useState([]);
+  const [reminders, setReminders] = useState([]);
   const [view, setView]       = useState("dashboard");
   const [detail, setDetail]   = useState(null);
   const [searchQ, setSearchQ] = useState("");
@@ -256,7 +257,7 @@ function MercuryPCMS() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [c,t,f,h] = await Promise.all([
+      const [c,t,f,h,r] = await Promise.all([
         // Cases are loaded through a server-side PostgREST filter so Decided
         // matters are never downloaded into the app at all.
         (async()=>{
@@ -271,6 +272,7 @@ function MercuryPCMS() {
         sb.from("tasks").select("*"),
         sb.from("fees").select("*"),
         sb.from("hearing_history").select("*"),
+        sb.from("hearing_reminders").select("*"),
       ]);
       if(Array.isArray(c) && c.length > 0) {
         setCases(c);
@@ -284,6 +286,7 @@ function MercuryPCMS() {
       if(Array.isArray(t)) setTasks(t);
       if(Array.isArray(f)) setFees(f);
       if(Array.isArray(h)) setHistory(h);
+      if(Array.isArray(r)) setReminders(r);
     } catch(e) {
       notify("Connection error: "+e.message,"var(--rose)");
     }
@@ -291,7 +294,7 @@ function MercuryPCMS() {
   };
 
   useEffect(()=>{let active=true; authClient.auth.getSession().then(({data:{session}})=>{if(active){setAuthUser(session?session.user:null);setAuthReady(true);}}).catch(()=>{if(active)setAuthReady(true);});
-   const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setTasks([]);setFees([]);setHistory([]);}});
+   const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setTasks([]);setFees([]);setHistory([]);setReminders([]);}});
    return ()=>{active=false;listener.data.subscription.unsubscribe();};},[]);
   useEffect(()=>{if(authUser)loadAll();},[authUser&&authUser.id]);
   const signIn=async e=>{e.preventDefault();setAuthBusy(true);setAuthError("");const r=await authClient.auth.signInWithPassword({email:authEmail.trim(),password:authPassword});setAuthBusy(false);if(r.error)setAuthError(r.error.message);else setAuthPassword("");};
@@ -568,6 +571,9 @@ function MercuryPCMS() {
     const [editingParty,setEditingParty]=useState(false);
     const [partyForm,setPartyForm]=useState({petparty_name:c.petparty_name||"",resparty_name:c.resparty_name||""});
     const [newDate,setNewDate]=useState(c.date_next_list||"");
+    const [reminderAt,setReminderAt]=useState("");
+    const [reminderSaving,setReminderSaving]=useState(false);
+    const saveHearingReminder=async()=>{if(!reminderAt){notify("Choose a reminder date and time","var(--amber)");return;}setReminderSaving(true);try{const when=new Date(reminderAt);if(Number.isNaN(when.getTime())||when.getTime()<=Date.now())throw new Error("Choose a future date and time.");const res=await sb.from("hearing_reminders").insert({user_id:authUser.id,case_id:c.id,reminder_at:when.toISOString(),channel:"in_app",status:"pending",next_attempt_at:when.toISOString()});if(Array.isArray(res)&&res.length){setReminders(list=>[...list,...res]);setReminderAt("");notify("Reminder saved to Supabase","var(--teal)");}else notify("Reminder was not saved","var(--rose)");}catch(e){notify("Reminder failed: "+e.message,"var(--rose)");}setReminderSaving(false);};
     const [histForm,setHistForm]=useState({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});
 
     const [chatLinks, setChatLinks] = useState([]);
@@ -926,6 +932,7 @@ function MercuryPCMS() {
                     <Btn sm v="teal" onClick={updateDate}>{saving?<Spin/>:<Ic n="save" size={12}/>}Save</Btn>
                   </div>
                 </div>
+                <div style={{gridColumn:"1/-1",background:"var(--paper)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--border)"}}><Lbl c="Durable Hearing Reminder"/><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><input aria-label="Reminder date and time" type="datetime-local" value={reminderAt} onChange={e=>setReminderAt(e.target.value)} style={{...iS,flex:"1 1 190px"}}/><Btn sm v="teal" onClick={saveHearingReminder}>{reminderSaving?<Spin/>:<Ic n="bell" size={12}/>}Save Reminder</Btn></div><div style={{fontSize:10,color:"var(--silver)",marginTop:6}}>Stored in Supabase and shared across signed-in devices. Automatic background delivery is not enabled yet.</div>{reminders.filter(x=>x.case_id===c.id).length>0&&<div style={{marginTop:8,display:"grid",gap:5}}>{reminders.filter(x=>x.case_id===c.id).map(x=><div key={x.id} style={{fontSize:11,display:"flex",justifyContent:"space-between",gap:8}}><span>{new Date(x.reminder_at).toLocaleString("en-IN")}</span><span style={{color:x.status==="sent"?"var(--teal)":"var(--amber)"}}>{x.status} · attempts {x.attempts}</span></div>)}</div>}</div>
               </div>
             )}
 
