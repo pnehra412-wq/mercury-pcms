@@ -6,7 +6,7 @@ on:
       - security-hardening-2026-10-19
   pull_request:
     branches:
-      - security-hardening-2026-10-19
+      - phase-0-safe-foundation
   workflow_dispatch:
 
 permissions:
