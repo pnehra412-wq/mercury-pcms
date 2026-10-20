@@ -137,7 +137,10 @@ Deno.serve(async (req) => {
 
     const path = "Mobile-Inbox/" + Date.now() + "_" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const up = await db.storage.from("case-files").upload(path, bytes, { contentType:"application/pdf", upsert:false });
-    if (up.error) return json(req, { error: up.error.message }, 500);
+    if (up.error) {
+      console.error("capture-mobile-order: Storage upload failed");
+      return json(req, { error: "Could not store the uploaded document" }, 500);
+    }
 
     const ins = await db.from("documents").insert({
       name:file.name, size:file.size, mime_type:"application/pdf", doc_type:String(form.get("doc_type")||"Order"),
@@ -146,7 +149,8 @@ Deno.serve(async (req) => {
     }).select("id,name,storage_path,processing_status").single();
     if (ins.error) {
       await db.storage.from("case-files").remove([path]);
-      return json(req, { error:ins.error.message },500);
+      console.error("capture-mobile-order: document metadata insert failed");
+      return json(req, { error:"Could not save the uploaded document" },500);
     }
 
     const documentId = ins.data.id;
