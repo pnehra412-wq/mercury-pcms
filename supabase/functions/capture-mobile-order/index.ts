@@ -12,14 +12,15 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 function corsHeaders(req: Request) {
   const origin = req.headers.get("Origin") || "";
-  const allowed = ALLOWED_ORIGINS.has(origin) ? origin : "https://mercuryandroid.vercel.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "content-type, authorization",
+  const responseHeaders: Record<string, string> = {
+    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
   };
+  if (origin && ALLOWED_ORIGINS.has(origin)) responseHeaders["Access-Control-Allow-Origin"] = origin;
+  return responseHeaders;
 }
 
 const json = (req: Request, body: unknown, status = 200) =>
@@ -85,7 +86,8 @@ function outcome(text: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method !== "POST") return json(req, { error: "Method Not Allowed" }, 405);
-  if (!ALLOWED_ORIGINS.has(req.headers.get("Origin") || "")) return json(req, { error: "Unauthorized origin" }, 403);
+  const origin = req.headers.get("Origin") || "";
+  if (origin && !ALLOWED_ORIGINS.has(origin)) return json(req, { error: "Unauthorized origin" }, 403);
   const auth = await authenticateMercuryRequest(req);
   if (!auth.ok) return json(req, { error: auth.message }, auth.status);
 
