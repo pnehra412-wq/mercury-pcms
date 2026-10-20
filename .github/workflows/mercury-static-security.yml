@@ -1,0 +1,29 @@
+name: Mercury PCMS free static guardrails
+
+on:
+  push:
+    branches:
+      - security-hardening-2026-10-19
+  pull_request:
+    branches:
+      - security-hardening-2026-10-19
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-security-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check guardrail script
+        run: node --check scripts/mercury-security-static-check.mjs
+      - name: Run dependency-free static security checks
+        run: node scripts/mercury-security-static-check.mjs
