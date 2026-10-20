@@ -25,6 +25,7 @@ for (const [label, pattern] of [
   ["case drafting brief", /copyCaseDraftingBrief/],
   ["drafting brief source limitations", /contents are not included in this brief/],
   ["task search", /Search tasks/],
+  ["task export", /mercury-tasks\.csv/],
   ["task scope filters", /value="overdue">Overdue only/],
   ["dashboard quick actions", /mercury-quick-actions/],
   ["local timezone date", /const TODAY = \(\(\)=>\{const d=new Date\(\)/]
