@@ -31,6 +31,47 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+  owner-migration-postgres-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Apply owner migration to disposable PostgreSQL fixture
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-fixture.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-seed.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-assertions.sql
+      - name: Verify migration aborts when no Auth owner exists
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG_CONTAINER" createdb -U postgres mercury_no_owner
+          docker exec "$PG_CONTAINER" psql -U postgres -d mercury_no_owner -v ON_ERROR_STOP=1 -c "create schema auth; create table auth.users (id uuid primary key);"
+          if docker exec -i "$PG_CONTAINER" psql -U postgres -d mercury_no_owner -v ON_ERROR_STOP=1 < supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql; then
+            echo "ERROR: migration unexpectedly succeeded with zero Auth users" >&2
+            exit 1
+          else
+            echo "PASS: migration safely aborted with zero Auth users"
+          fi
+
       - name: Type-check modified Edge Functions
         run: |
           deno check supabase/functions/_shared/mercury-auth.ts
