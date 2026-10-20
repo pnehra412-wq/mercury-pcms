@@ -1512,7 +1512,7 @@ function MercuryPCMS() {
       </div>;
     };
     const allMonthDates=Array.from({length:42},(_,i)=>{const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);return d;});
-    return <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12,minHeight:0,height:"100%",overflowY:"auto",paddingBottom:18}}>
+    return <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12,flex:"1 1 auto",minHeight:0,minWidth:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:18}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,fontWeight:750,margin:"0 0 4px"}}>Hearing Calendar</h2><div style={{fontSize:11,color:"var(--silver)"}}>Your court diary · {calendarCases.length} hearings in the displayed calendar range</div></div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn><Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn></div>
@@ -1526,9 +1526,9 @@ function MercuryPCMS() {
       </div>
       {calendarError&&<Card p={12} style={{border:"1px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:11}}>Calendar could not load: {calendarError}</Card>}
       {calendarLoading&&<Card p={12} style={{fontSize:11,color:"var(--silver)"}}>Loading hearings…</Card>}
-      {!calendarError&&calendarMode==="month"&&<div style={{background:"white",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",background:"var(--paper)",borderBottom:"1px solid var(--border)"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{padding:"9px 2px",textAlign:"center",fontSize:9.5,fontWeight:800,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))"}}>{allMonthDates.map((d,i)=>{const inMonth=d.getMonth()===m;return <div key={dateKey(d)} style={{minWidth:0,minHeight:112,borderRight:i%7===6?"none":"1px solid var(--border)",borderBottom:i>=35?"none":"1px solid var(--border)",padding:3,background:dateKey(d)===TODAY?"#f1f7ff":inMonth?"white":"#f8fafc",opacity:inMonth?1:.62}}>{dayButton(d,false)}</div>;})}</div>
+      {!calendarError&&calendarMode==="month"&&<div style={{background:"white",border:"1px solid var(--border)",borderRadius:10,overflowX:"auto",overflowY:"hidden",minWidth:0,boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(76px,1fr))",minWidth:560,background:"var(--paper)",borderBottom:"1px solid var(--border)"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{padding:"9px 2px",textAlign:"center",fontSize:9.5,fontWeight:800,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(76px,1fr))",minWidth:560}}>{allMonthDates.map((d,i)=>{const inMonth=d.getMonth()===m;return <div key={dateKey(d)} style={{minWidth:0,minHeight:112,borderRight:i%7===6?"none":"1px solid var(--border)",borderBottom:i>=35?"none":"1px solid var(--border)",padding:3,background:dateKey(d)===TODAY?"#f1f7ff":inMonth?"white":"#f8fafc",opacity:inMonth?1:.62}}>{dayButton(d,false)}</div>;})}</div>
       </div>}
       {!calendarError&&calendarMode==="week"&&<div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(115px,1fr))",gap:6,overflowX:"auto",paddingBottom:4}}>{weekDays.map(d=>dayButton(d,true))}</div>}
       {!calendarError&&calendarMode==="day"&&<div style={{display:"flex",flexDirection:"column",gap:10}}><Card p={12}><div style={{fontSize:16,fontWeight:800}}>{anchor.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div><div style={{fontSize:11,color:"var(--silver)",marginTop:3}}>{selectedHearings.length} hearing(s) scheduled</div></Card>{renderAgenda([anchor])}</div>}
@@ -1905,7 +1905,7 @@ function MercuryPCMS() {
           <div className="mercury-today" style={{fontSize:11,color:"var(--silver)",whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
         </div>
 
-        <div className="mercury-main-pad" style={{flex:1,overflow:"hidden",padding:"14px 18px",display:"flex",flexDirection:"column"}}>
+        <div className="mercury-main-pad" style={{flex:"1 1 auto",minHeight:0,minWidth:0,overflow:"hidden",padding:"14px 18px",display:"flex",flexDirection:"column"}}>
           {view==="dashboard"  &&<Dashboard/>}
           {view==="cases"      &&<CasesView/>}
           {view==="board"      &&<BoardView/>}
