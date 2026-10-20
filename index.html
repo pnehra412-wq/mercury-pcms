@@ -296,6 +296,7 @@ function MercuryPCMS() {
   useEffect(()=>{if(authUser)loadAll();},[authUser&&authUser.id]);
   const signIn=async e=>{e.preventDefault();setAuthBusy(true);setAuthError("");const r=await authClient.auth.signInWithPassword({email:authEmail.trim(),password:authPassword});setAuthBusy(false);if(r.error)setAuthError(r.error.message);else setAuthPassword("");};
   const signOut=async()=>{await authClient.auth.signOut();setAuthUser(null);};
+  const notionSync=async(action)=>{if(action==="sync"&&!window.confirm("Update matched Notion case rows from Supabase? Notion-only fields will be preserved."))return;try{const q=await authClient.auth.getSession();const session=q.data&&q.data.session;if(!session||!session.access_token)throw new Error("Please sign in again.");const response=await fetch(SB_URL+"/functions/v1/mercury-notion-sync",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action:action})});const data=await response.json();if(!response.ok)throw new Error(data.error||data.message||("HTTP "+response.status));if(action==="preview")notify("Preview: "+data.supabase_pending_cases_read+" pending cases; "+data.existing_cino_matches+" CINO matches; "+data.pending_cases_not_in_notion+" unmatched.","var(--teal)");else notify("Notion sync: "+data.updated_pages+" rows updated; "+data.pending_cases_not_in_notion+" unmatched. No pages created/deleted.","var(--teal)");}catch(e){notify("Notion "+action+" failed: "+e.message,"var(--rose)");}};
 
   // Browser notifications repeat every 30 minutes while Mercury is open.
   // Task reminders are individual; hearing reminders are batched once per local day.
@@ -397,15 +398,19 @@ function MercuryPCMS() {
           <span style={{fontSize:11.5,color:"var(--ink3)",fontWeight:500}}>
             {loading ? "⏳ Loading from Supabase…" : cases.length>0 ? `✅ ${cases.length} cases loaded from cloud` : "⚠️ No cases found"}
           </span>
+          <Btn sm v="ghost" onClick={()=>notionSync("preview")}><Ic n="search" size={12}/>Notion preview</Btn>
+          <Btn sm onClick={()=>notionSync("sync")}><Ic n="sync" size={12}/>Sync Notion</Btn>
           <Btn sm v="ghost" onClick={loadAll} style={{marginLeft:"auto"}}><Ic n="sync" size={12}/>Refresh</Btn>
         </div>
 
         {/* Stat cards */}
-        <div className="mercury-stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10}}>
+        <div className="mercury-stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:10}}>
           {[
             {label:"Total Cases",    val:cases.length,         icon:"list",  color:"var(--gold)",  action:()=>setView("cases")},
             {label:"Next 7 Days",    val:next7.length,         icon:"bell",  color:"var(--amber)", action:()=>setView("calendar")},
             {label:"Today",          val:todayCases.length,    icon:"alert", color:"var(--rose)",  action:()=>setView("calendar")},
+            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:()=>setView("calendar")},
+            {label:"No Next Date",   val:missingDate.length,    icon:"cal", color:"#7a5b9e", action:()=>setView("cases")},
             {label:"Pending Tasks",  val:pendTasks.length,     icon:"task",  color:"var(--teal)",  action:()=>setView("tasks")},
             {label:"Fees Received",  val:`₹${(totalFees/1000).toFixed(0)}k`,icon:"fee",color:"#1a6aa8",action:()=>setView("fees")},
           ].map((s,i) => (
