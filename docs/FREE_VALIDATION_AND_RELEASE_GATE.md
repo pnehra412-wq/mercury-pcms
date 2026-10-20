@@ -36,3 +36,11 @@ This checklist is intentionally a release gate, not a claim that the app is comp
 ## Completion criteria
 
 Do not call Mercury PCMS complete until all of these are true: frontend and function type checks pass; owner schema migration is tested; negative cross-user tests pass; document recovery/idempotency tests pass; the missing function is reviewed; all relevant Security Advisor findings are either fixed or documented with a justified exception; and Windows/Android core workflows pass regression tests.
+
+
+## Latest free CI evidence (2026-10-20)
+
+- The free GitHub Actions run [39366296206](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39366296206) passed on commit `1c28662adfb85b5127ca2f3e06c72b3faa39f8b2`.
+- Passed: Node syntax check for the guardrail script, all dependency-free static checks, and Deno type-checks for the shared auth helper plus the listed document, capture, chat, office, and publishing Edge Functions.
+- The type-check run found and prompted fixes for a Web Crypto typed-array incompatibility and a catch-variable typing issue.
+- This is source/type validation only. It does not test live Auth, owner/RLS behavior, Storage operations, browser CORS end-to-end, Android sharing, or data migration safety. Any new source commit should be validated by a fresh CI run before release.
