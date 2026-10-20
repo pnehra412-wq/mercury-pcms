@@ -7,10 +7,10 @@ This checklist is intentionally a release gate, not a claim that the app is comp
 
 ## Verified source-level risks to close
 
-1. `prepare-document-share/index.ts` still has `Access-Control-Allow-Origin: *`. Its handler does authenticate a Supabase access token through `authenticateMercuryRequest` and filters documents by `owner_id`, but those checks depend on the un-applied owner migration. CORS is not authentication; nevertheless, wildcard browser access is unnecessary for a private document workflow. Before changing the origin list, confirm all actual browser origins; preserve native clients that omit Origin.
-2. The branch copies of `get-document-url` and `prepare-document-share` query `owner_id`, which does not exist in the live schema. Do not deploy those functions before the matching schema migration and negative tests.
+1. The current branch copies of `get-document-url` and `prepare-document-share` use explicit origin allowlists, do not emit wildcard CORS, and support native requests without an Origin header while still requiring bearer authentication. The allowlist must be confirmed against real deployed browser origins before release.
+2. The branch copies of `get-document-url` and `prepare-document-share` query `owner_id`, which does not exist in the live schema. Do not deploy these functions before the matching schema migration and negative tests.
 3. The shared helper calls Auth `getUser(token)` before creating a service-role client. Each function still needs a resource-specific owner check. Review every service-role query/update, not only the presence of the helper import.
-4. Current live policies/views remain unsafe per the live audit. Branch code does not remediate live database access.
+4. Production still has permissive `public` policies with true predicates on `cases`, `tasks`, `hearing_history`, and `documents`. The owner migration is not applied, and branch code does not remediate those live database policies.
 
 ## Free checks to run when a local checkout is available
 
@@ -65,3 +65,12 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 
 - Final branch verification after aligning the view migration version with Supabase history: [GitHub Actions run 39367983216](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39367983216) passed on commit `eb257d71a865c0e48138ac78122f2a45dbaa68df`.
 - Production migration history confirms the view fix is recorded as version `20261020035653`; the matching branch migration filename is `supabase/migrations/20261020035653_secure_office_views_security_invoker.sql`.
+
+
+## Re-review after owner-migration grant audit — 2026-10-20
+
+- A second review found that the draft owner migration revoked anonymous/public table grants but did not first revoke legacy grants from `authenticated`. This matters because RLS does not protect `TRUNCATE`. The branch migration now revokes all existing table and sequence privileges from `anon`, `authenticated`, and `public`, then grants only SELECT/INSERT/UPDATE/DELETE and sequence USAGE/SELECT to `authenticated`.
+- The static guardrail now checks both table-grant and sequence-grant resets. These are source assertions only until a fresh CI run passes.
+- Live read-only verification found **zero rows in `auth.users`**. Therefore the migration's single-owner preflight will correctly abort today; no owner identity or UUID will be guessed, and the migration must not be applied until the owner account is created through Supabase Auth administration.
+- Live read-only inspection confirms the `public`-role `USING(true)` / `WITH CHECK(true)` policies and broad `anon` table grants remain on `cases`, `tasks`, `hearing_history`, and `documents`. These cannot safely be removed in isolation because the current frontend has not completed the Auth transition. This is still a critical production exposure.
+- The migration remains untested against a live-like PostgreSQL database; do not treat static checks as SQL runtime validation.
