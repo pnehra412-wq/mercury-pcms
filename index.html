@@ -40,6 +40,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
 .mercury-topbar{min-height:52px}
 .mercury-main-pad{padding:14px 18px}
 .mercury-case-sheet{width:440px}
+@media print {
+  body,#root{height:auto!important;overflow:visible!important;background:#fff!important}
+  .mercury-sidebar,.mercury-topbar,.mercury-mobile-nav,button,input,select,textarea{display:none!important}
+  .mercury-main-pad{height:auto!important;overflow:visible!important;padding:0!important}
+  .mercury-main-pad>div{height:auto!important;overflow:visible!important}
+  .fade-up{animation:none!important}
+  *{box-shadow:none!important}
+}
 @media (max-width: 700px){
   html,body,#root{height:100%;width:100%;overflow:hidden}
   body{padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -281,6 +289,24 @@ function MercuryPCMS() {
   };
 
   useEffect(() => { loadAll(); }, []);
+
+  // Browser notifications repeat every 30 minutes while Mercury is open; each task is announced once per local day.
+  useEffect(() => {
+    const checkDueTasks = () => {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      tasks.filter(t => !t.done && t.due && t.due <= TODAY).forEach(t => {
+        const key = "mercury-reminder-" + (t.id || t.title) + "-" + TODAY;
+        try {
+          if (sessionStorage.getItem(key)) return;
+          new Notification("Mercury task due", {body:(t.title || "Untitled task") + " · " + t.due});
+          sessionStorage.setItem(key,"1");
+        } catch(e) {}
+      });
+    };
+    checkDueTasks();
+    const timer=setInterval(checkDueTasks, 30*60*1000);
+    return () => clearInterval(timer);
+  }, [tasks]);
 
   const allDists  = useMemo(() => [...new Set(cases.map(c=>c.district_name))].sort(), [cases]);
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
