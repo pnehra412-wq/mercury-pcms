@@ -90,6 +90,13 @@ check("Publisher no longer uses legacy token literal", !publisher.includes("MERC
 const officeLower = office.toLowerCase();
 check("Office source has no legacy shared-key variable", !officeLower.includes("mercury_office_key"), "legacy office key variable found");
 
+const ownerMigration = read("supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql");
+check("Owner migration aborts unless exactly one Auth user exists", ownerMigration.includes("v_user_count <> 1") && ownerMigration.includes("expected exactly one Auth user"), "missing single-owner preflight");
+check("Owner migration preserves unlinked documents", ownerMigration.includes("owner_id is independent of CINO") && ownerMigration.includes("update public.%I set owner_id = $1 where owner_id is null"), "owner backfill may skip unlinked records");
+check("Owner migration removes old permissive policies before owner policy", ownerMigration.includes("drop policy %I on public.%I") && ownerMigration.includes("for all to authenticated using (owner_id = (select auth.uid()))"), "owner policy may be bypassed by old permissive policy");
+check("Owner migration revokes anonymous table access", ownerMigration.includes("revoke all privileges on table public.%I from anon, public"), "anonymous/public table privileges remain");
+check("Owner migration does not erase document bytes", !/update public\.documents\s+set\s+file_data\s*=\s*null/i.test(ownerMigration), "migration clears legacy document contents");
+
 for (const result of checks) {
   process.stdout.write(`${result.passed ? "PASS" : "FAIL"}  ${result.label}\n`);
 }
