@@ -694,7 +694,25 @@ function MercuryPCMS() {
       setSaving(false);
     };
     const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
-    const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
+    const addHistory=async()=>{
+      if(!histForm.hearing_date){notify("Please enter the hearing date","var(--amber)");return;}
+      setSaving(true);
+      const entry={...histForm,cino:c.cino};
+      const res=await sb.from("hearing_history").insert(entry);
+      if(Array.isArray(res)&&res.length){
+        setHistory(h=>[...h,...res]);
+        if(histForm.next_date){
+          await sb.from("cases").update({date_next_list:histForm.next_date},{cino:c.cino});
+          setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:histForm.next_date}:x));
+          setDetail(p=>p&&p.cino===c.cino?({...p,date_next_list:histForm.next_date}):p);
+        }
+        setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});
+        notify(histForm.next_date?"Hearing logged and next hearing date updated":"Hearing logged");
+      }else{
+        notify("Could not save the hearing. Please check your connection and try again.","var(--rose)");
+      }
+      setSaving(false);
+    };
 
     const TABS=["info","diary","tasks","docs","notes","ai","cnr"];
     const [caseDocs,setCaseDocs]=useState([]);
