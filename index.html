@@ -831,6 +831,7 @@ function MercuryPCMS() {
             orders++;
             if(data.document_id){const rows=await sbReq("GET","documents?id=eq."+encodeURIComponent(data.document_id)+"&select=*");if(Array.isArray(rows)&&rows[0]&&rows[0].cino===c.cino)setCaseDocs(ds=>[rows[0],...ds.filter(d=>d.id!==rows[0].id)]);}
             await loadAll();
+            if(data.cino){const updatedCase=await sbReq("GET","cases?cino=eq."+encodeURIComponent(data.cino)+"&select=*");if(Array.isArray(updatedCase)&&updatedCase[0])setDetail(updatedCase[0]);}
             if(data.cino&&data.next_date)notify("Order processed · "+data.cino+" · Next date "+data.next_date+(data.purpose?" · "+data.purpose:""),"var(--teal)");
             else if(data.cino)notify("Order analysed for "+data.cino+". Review the extracted order details.","var(--amber)");
             else notify("Order saved. Mercury could not confidently match it; no case was auto-updated.","var(--amber)");
