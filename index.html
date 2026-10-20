@@ -104,13 +104,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   .mercury-calendar-month-scroll{width:100%;max-width:100%}
   @media(max-width:700px){
     .mercury-calendar-month-scroll{overflow-x:hidden!important;overflow-y:visible!important;height:auto!important;max-height:none!important;display:block!important}
+    .mercury-main-pad>.fade-up{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;flex:0 0 auto!important}
+    .mercury-calendar-month-scroll{flex:0 0 auto!important;min-height:0!important;max-height:none!important}
+    .mercury-calendar-month-grid{grid-auto-rows:minmax(68px,auto)!important;align-content:start!important}
     .mercury-calendar-weekdays,.mercury-calendar-month-grid{display:grid!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;grid-auto-rows:auto!important;min-width:0!important;width:100%!important;height:auto!important;max-height:none!important;visibility:visible!important}
     .mercury-calendar-weekdays>div{display:block!important;padding:7px 0!important;font-size:8px!important;min-width:0}
     .mercury-calendar-month-grid>div{display:block!important;min-height:78px!important;height:auto!important;padding:1px!important;min-width:0!important;overflow:visible!important;visibility:visible!important}
     .mercury-calendar-month-grid>.mercury-calendar-month-heading{display:block!important;min-height:0!important;height:auto!important;padding:7px 0!important;font-size:8px!important;overflow:hidden!important;background:var(--paper)!important}
     .mercury-calendar-day-card{display:flex!important;min-height:74px!important;height:auto!important;padding:2px 1px!important;gap:2px!important;border-radius:4px!important;visibility:visible!important}
     .mercury-calendar-date-button{display:flex!important;min-height:22px!important;height:auto!important;padding:1px!important;justify-content:center!important;font-size:10px!important;gap:0!important;visibility:visible!important}
-    .mercury-calendar-date-button span:last-child{display:none!important}
+    .mercury-calendar-date-button span:nth-child(2){display:none!important}
     .mercury-calendar-hearing-button{display:block!important;font-size:7px!important;line-height:1.15!important;padding:2px 1px!important;border-left-width:2px!important;overflow-wrap:anywhere!important;visibility:visible!important}
     .mercury-calendar-hearing-button span:nth-child(2){display:none!important}
   }
