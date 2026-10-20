@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-20-views-v1"/>
+<meta name="mercury-build" content="2026-10-20-views-v2"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -1777,7 +1777,36 @@ function MercuryPCMS() {
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:19}}>Case Intelligence & Office Desk</h2><div style={{fontSize:11,color:"var(--silver)",marginTop:3}}>Search case facts, uploaded order summaries, directions and previous proceedings.</div></div><Btn sm v="ghost" onClick={()=>setOfficeRefresh(x=>x+1)} style={{marginLeft:"auto"}}><Ic n="sync" size={12}/>Refresh index</Btn></div>
       <Card p={12}><div style={{display:"flex",gap:8,alignItems:"center"}}><Ic n="search" size={16} color="var(--silver)"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search parties, CINO, court, order directions, dates, proceedings…" style={{...iS,flex:1}}/></div><div style={{fontSize:10,color:"var(--silver)",marginTop:7}}>{matches.length} matching case(s) · {docs.length} documents indexed · {analyses.length} analyses</div>
       {busy&&<div style={{padding:12,display:"flex",gap:8,alignItems:"center"}}><Spin/>Loading order index and activity…</div>}
-      {!busy&&matches.slice(0,40).map(c=>{const aa=analyses.find(a=>a.cino===c.cino),dd=docs.filter(d=>d.cino===c.cino);const hh=history.filter(x=>x.cino===c.cino).sort((a,b)=>(b.hearing_date||"").localeCompare(a.hearing_date||""))[0];return <div key={c.id} style={{borderTop:"1px solid var(--border)",padding:"11px 2px",display:"flex",gap:10,alignItems:"flex-start"}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:800}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:3}}>{c.cino} · {c.court_no_desg_name||c.establishment_name||"Court not recorded"} · Next: {fmt(c.date_next_list)} · {c.purpose_name||"Purpose not recorded"}</div>{(c.latest_order_crux||aa?.crux||c.latest_order_action)&&<div style={{fontSize:11.5,lineHeight:1.5,marginTop:6}}><b>Latest order:</b> {c.latest_order_crux||aa?.crux} {c.latest_order_action&&<span><b> Action:</b> {c.latest_order_action}</span>}</div>}{hh&&<div style={{fontSize:10.5,color:"var(--silver)",marginTop:4}>Latest proceeding · {fmt(hh.hearing_date)} · {hh.outcome||hh.purpose||"Recorded"}</div>}{dd.length>0&&<div style={{fontSize:10.5,color:"var(--teal)",marginTop:4}>{dd.length} document(s): {dd.slice(0,3).map(d=>d.name).join(" · ")}</div>}</div><Btn sm v="ghost" onClick={()=>openCase(c)}>Open case</Btn></div>;})}
+      {!busy && matches.slice(0, 40).map(c => {
+        const aa = analyses.find(a => a.cino === c.cino);
+        const dd = docs.filter(d => d.cino === c.cino);
+        const hh = history.filter(x => x.cino === c.cino).sort((a, b) => (b.hearing_date || "").localeCompare(a.hearing_date || ""))[0];
+        return (
+          <div key={c.id} style={{borderTop:"1px solid var(--border)",padding:"11px 2px",display:"flex",gap:10,alignItems:"flex-start"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12.5,fontWeight:800}}>{partyLabel(c)}</div>
+              <div style={{fontSize:10.5,color:"var(--silver)",marginTop:3}}>{c.cino} · {c.court_no_desg_name || c.establishment_name || "Court not recorded"} · Next: {fmt(c.date_next_list)} · {c.purpose_name || "Purpose not recorded"}</div>
+              {(c.latest_order_crux || (aa && aa.crux) || c.latest_order_action) && (
+                <div style={{fontSize:11.5,lineHeight:1.5,marginTop:6}}>
+                  <b>Latest order:</b> {c.latest_order_crux || (aa && aa.crux)}
+                  {c.latest_order_action && <span><b> Action:</b> {c.latest_order_action}</span>}
+                </div>
+              )}
+              {hh && (
+                <div style={{fontSize:10.5,color:"var(--silver)",marginTop:4}}>
+                  Latest proceeding · {fmt(hh.hearing_date)} · {hh.outcome || hh.purpose || "Recorded"}
+                </div>
+              )}
+              {dd.length > 0 && (
+                <div style={{fontSize:10.5,color:"var(--teal)",marginTop:4}}>
+                  {dd.length} document(s): {dd.slice(0,3).map(d => d.name).join(" · ")}
+                </div>
+              )}
+            </div>
+            <Btn sm v="ghost" onClick={() => openCase(c)}>Open case</Btn>
+          </div>
+        );
+      })}
       {!busy&&!matches.length&&<div style={{padding:20,textAlign:"center",color:"var(--silver)",fontSize:12}}>No case matches this search.</div>}</Card>
       <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:5}}>e-Courts Order Inbox</div><div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Orders imported from your downloads or shared to Mercury appear here. Opening an unprocessed stored PDF triggers analysis; Mercury updates a case only when the match is sufficiently confident.</div>{docs.filter(d=>String(d.doc_type||"").toLowerCase().includes("order")||String(d.source||"").toLowerCase().includes("ecourts")||!d.cino).slice(0,20).map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",borderTop:"1px solid var(--border)"}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11.5,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name||"Court order PDF"}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>{d.cino||"Case not matched"} · {d.processing_status||"Not analysed"} · {d.uploaded_at?fmt(d.uploaded_at.slice(0,10)):""}</div>{d.ai_summary&&<div style={{fontSize:10.5,color:"var(--ink3)",marginTop:3}}>{d.ai_summary}</div>}</div><Btn sm v="ghost" onClick={()=>openOrderFile(d)}>{d.storage_path?"Open / analyse":"Open case"}</Btn></div>)}{!docs.some(d=>String(d.doc_type||"").toLowerCase().includes("order")||String(d.source||"").toLowerCase().includes("ecourts")||!d.cino)&&<div style={{fontSize:11,color:"var(--silver)",padding:"8px 0"}}>No court orders in the inbox yet. In a case's Docs tab, select <b>Order</b> before uploading the e-Courts PDF.</div>}</Card>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
