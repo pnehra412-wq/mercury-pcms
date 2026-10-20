@@ -6,9 +6,9 @@ insert into public.hearing_history(cino,hearing_date) values ('CINO-TEST-1','202
 insert into public.documents(cino,file_path,file_data) values (null,'preserve.pdf','preserve-file-data');
 insert into public.document_analysis(document_id,cino,analysis)
   select id,null,'{"status":"preserve"}'::jsonb from public.documents where file_path='preserve.pdf';
-insert into public.case_ai_chats(case_id,chat) select id,'{"chat":"preserve"}'::jsonb from public.cases;
-insert into public.case_contacts(case_id,contact) select id,'{"name":"preserve"}'::jsonb from public.cases;
-insert into public.case_issues(case_id,issue) select id,'preserve issue' from public.cases;
-insert into public.case_notes(case_id,note) select id,'preserve note' from public.cases;
+insert into public.case_ai_chats(cino,chat) values ('CINO-TEST-1','{"chat":"preserve"}'::jsonb);
+insert into public.case_contacts(cino,contact) values ('CINO-TEST-1','{"name":"preserve"}'::jsonb);
+insert into public.case_issues(cino,issue) values ('CINO-TEST-1','preserve issue');
+insert into public.case_notes(cino,note) values ('CINO-TEST-1','preserve note');
 insert into public.court_watch(cino,watch) values ('CINO-TEST-1','{"watch":true}'::jsonb);
-insert into public.fees(case_id,amount) select id,123.45 from public.cases;
+insert into public.fees(cino,amount) values ('CINO-TEST-1',123.45);
