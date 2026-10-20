@@ -572,6 +572,11 @@ function MercuryPCMS() {
     const caseHistory=history.filter(x=>x.cino===c.cino).sort((a,b)=>new Date(b.hearing_date)-new Date(a.hearing_date));
     const [noteVal,setNoteVal]=useState(c.notes_adv||"");
     const [activeTab,setActiveTab]=useState("info");
+    const [draftType,setDraftType]=useState("Application");
+    const [draftInstructions,setDraftInstructions]=useState("");
+    const [generatedDraft,setGeneratedDraft]=useState("");
+    const [draftingBusy,setDraftingBusy]=useState(false);
+    const [savingDraft,setSavingDraft]=useState(false);
     const [saving,setSaving]=useState(false);
     const [editingParty,setEditingParty]=useState(false);
     const [partyForm,setPartyForm]=useState({petparty_name:c.petparty_name||"",resparty_name:c.resparty_name||""});
@@ -650,6 +655,20 @@ function MercuryPCMS() {
         else notify("Copy was blocked by the browser. Please try again.","var(--amber)");
       } catch(e) { notify("Could not copy the case brief. Please try again.","var(--rose)"); }
     };
+
+    const generateCaseDraft = async () => {
+      setDraftingBusy(true);setGeneratedDraft("");
+      try{
+        const ss=await authClient.auth.getSession(),session=ss.data&&ss.data.session;if(!session?.access_token)throw new Error("Please sign in again.");
+        const r=await fetch(SB_URL+"/functions/v1/draft-case-document",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({cino:c.cino,draft_type:draftType,instructions:draftInstructions})});
+        const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||"Could not generate draft");
+        setGeneratedDraft(data.draft||"");await logActivity(c.cino,"ai_draft_generated","Generated AI first draft: "+draftType,{source_counts:data.source_counts||{}});
+        notify("AI first draft generated. Verify every fact and legal authority before filing.","var(--teal)");
+      }catch(e){notify("Drafting failed: "+(e.message||"Unknown error"),"var(--rose)");}
+      finally{setDraftingBusy(false);}
+    };
+    const copyGeneratedDraft = () => {try{const el=document.createElement("textarea");el.value=generatedDraft;el.style.cssText="position:fixed;top:0;left:0;opacity:0;";document.body.appendChild(el);el.focus();el.select();const ok=document.execCommand("copy");el.remove();notify(ok?"Draft copied to clipboard":"Copy was blocked by the browser",ok?"var(--teal)":"var(--amber)");}catch(e){notify("Could not copy draft","var(--rose)");}};
+    const saveGeneratedDraft = async () => {if(!generatedDraft.trim())return;setSavingDraft(true);try{const r=await sbReq("POST","case_notes",{user_id:authUser.id,cino:c.cino,note_type:"AI Draft - "+draftType,note_text:generatedDraft});if(!Array.isArray(r)||!r.length)throw new Error("Draft was not saved");await logActivity(c.cino,"ai_draft_saved","Saved AI draft to case notes",{draft_type:draftType,note_id:r[0].id});notify("Draft saved to this case’s notes.","var(--teal)");}catch(e){notify("Could not save draft: "+(e.message||"Unknown error"),"var(--rose)");}finally{setSavingDraft(false);}};
 
     const saveChatLink = async () => {
       if(!chatUrl.trim() || chatSaving) return;
@@ -1154,6 +1173,16 @@ function MercuryPCMS() {
                   <div style={{fontSize:11.5,fontWeight:800,color:"var(--ink3)",marginBottom:5}}>📝 Start a case-grounded draft</div>
                   <div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Copies the case details, chamber notes, recorded hearings and document filenames into a structured prompt. It does not include document contents; review and attach the original files before relying on a draft.</div>
                   <Btn sm v="gold" onClick={copyCaseDraftingBrief}><Ic n="copy" size={12}/>Copy Case Drafting Brief</Btn>
+                </div>
+                <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,padding:12}}>
+                  <div style={{fontSize:12.5,fontWeight:900,marginBottom:4}}>✍️ Generate a case-specific first draft</div>
+                  <div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Uses Mercury’s case record, recorded proceedings, order summaries and saved case notes. It does not replace review of the original PDFs or verification of current law.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8}}>
+                    <div><Lbl c="Draft type"/><select value={draftType} onChange={e=>setDraftType(e.target.value)} style={iS}>{["Application","Reply / Written Statement","Rejoinder","Legal Notice","Written Submissions","Hearing Note","Case Summary","Questions for Cross-Examination"].map(x=><option key={x}>{x}</option>)}</select></div>
+                    <div><Lbl c="Your instructions (optional)"/><textarea value={draftInstructions} onChange={e=>setDraftInstructions(e.target.value)} rows={3} placeholder="Relief sought, specific objections, facts to emphasise, format or court directions…" style={{...iS,resize:"vertical",lineHeight:1.5}}/></div>
+                    <div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn v="gold" onClick={generateCaseDraft} disabled={draftingBusy}>{draftingBusy?<Spin/>:<Ic n="file-text" size={13}/>}Generate draft</Btn>{generatedDraft&&<Btn sm v="ghost" onClick={copyGeneratedDraft}><Ic n="copy" size={12}/>Copy</Btn>}{generatedDraft&&<Btn sm v="teal" onClick={saveGeneratedDraft} disabled={savingDraft}>{savingDraft?<Spin/>:<Ic n="save" size={12}/>}Save to case notes</Btn>}</div>
+                  </div>
+                  {generatedDraft&&<div style={{marginTop:10}}><Lbl c="Editable AI-generated draft — verify before filing"/><textarea value={generatedDraft} onChange={e=>setGeneratedDraft(e.target.value)} rows={18} style={{...iS,resize:"vertical",lineHeight:1.6,fontFamily:"Georgia,serif",fontSize:12.5,whiteSpace:"pre-wrap"}}/><div style={{fontSize:10,color:"var(--amber)",lineHeight:1.5,marginTop:6}}>Important: this is an AI first draft, not a filing-ready pleading. Verify facts against the original documents, confirm dates and relief, and independently verify every statutory provision and authority.</div></div>}
                 </div>
 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
