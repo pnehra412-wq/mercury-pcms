@@ -1090,6 +1090,65 @@ function MercuryPCMS() {
   };
 
   // ── CALENDAR ─────────────────────────────────────────────────────────────
+  // ── CASE DIARY ───────────────────────────────────────────────────────────
+  const DiaryView = () => {
+    const [diarySearch,setDiarySearch]=useState("");
+    const [fromDate,setFromDate]=useState("");
+    const [toDate,setToDate]=useState("");
+    const rows=useMemo(()=>{
+      const q=diarySearch.trim().toLowerCase();
+      return [...history].filter(h=>{
+        const c=cases.find(x=>x.cino===h.cino);
+        const hay=[h.cino,h.purpose,h.outcome,h.notes,c&&c.petparty_name,c&&c.resparty_name,c&&c.note].filter(Boolean).join(" ").toLowerCase();
+        const d=h.hearing_date||"";
+        return (!q||hay.includes(q))&&(!fromDate||d>=fromDate)&&(!toDate||d<=toDate);
+      }).sort((a,b)=>(b.hearing_date||"").localeCompare(a.hearing_date||""));
+    },[history,cases,diarySearch,fromDate,toDate]);
+    const exportRows=rows.map(h=>{
+      const c=cases.find(x=>x.cino===h.cino);
+      return {"Hearing Date":h.hearing_date||"","CNR":h.cino||"","Case":c?partyLabel(c):"","Court":(c&&c.court_no_desg_name)||"","Purpose":h.purpose||"","Proceedings / Outcome":h.outcome||"","Next Date":h.next_date||"","Notes":h.notes||""};
+    });
+    return (
+      <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%",minHeight:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{minWidth:180}}>
+            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Case Diary</h2>
+            <div style={{fontSize:11,color:"var(--silver)",marginTop:2}}>Hearing history and proceedings · {rows.length} entries</div>
+          </div>
+          <div style={{marginLeft:"auto",display:"flex",gap:7,flexWrap:"wrap"}}>
+            <Btn sm v="ghost" onClick={()=>{if(!downloadCsv("mercury-case-diary.csv",exportRows))notify("No diary entries to export","var(--amber)");}}><Ic n="save" size={12}/>Export CSV / Excel</Btn>
+            <Btn sm v="ghost" onClick={()=>window.print()}><Ic n="history" size={12}/>Print / Save PDF</Btn>
+            <Btn sm onClick={()=>setView("cases")}><Ic n="search" size={12}/>Find Case</Btn>
+          </div>
+        </div>
+        <Card p={10}>
+          <div style={{display:"grid",gridTemplateColumns:"minmax(180px,2fr) repeat(2,minmax(130px,1fr)) auto",gap:8,alignItems:"end"}}>
+            <div><Lbl c="Search diary"/><input value={diarySearch} onChange={e=>setDiarySearch(e.target.value)} placeholder="Party, CNR, proceedings…" style={iS}/></div>
+            <div><Lbl c="From date"/><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={iS}/></div>
+            <div><Lbl c="To date"/><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={iS}/></div>
+            <Btn sm v="ghost" onClick={()=>{setDiarySearch("");setFromDate("");setToDate("");}}>Clear filters</Btn>
+          </div>
+        </Card>
+        <div style={{flex:1,minHeight:0,overflowY:"auto",background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,boxShadow:"var(--shadow)"}}>
+          {rows.length===0?<div style={{padding:32,textAlign:"center",color:"var(--silver)",fontSize:12}}>No diary entries match these filters. Open a case and add a hearing entry to begin.</div>:rows.map((h,i)=>{
+            const c=cases.find(x=>x.cino===h.cino);
+            return <div key={h.id||h.cino+"-"+h.hearing_date+"-"+i} style={{padding:"12px 14px",borderBottom:"1px solid var(--border)",display:"grid",gridTemplateColumns:"100px minmax(0,1fr) auto",gap:12,alignItems:"start",cursor:c?"pointer":"default"}} onClick={()=>c&&openCase(c)} onMouseEnter={e=>{if(c)e.currentTarget.style.background="var(--paper)"}} onMouseLeave={e=>e.currentTarget.style.background="white"}>
+              <div style={{fontSize:11.5,fontWeight:700,color:"var(--ink3)"}}>{fmt(h.hearing_date)}</div>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12.5,fontWeight:700,marginBottom:4,overflowWrap:"anywhere"}}>{c?partyLabel(c):(h.cino||"Unlinked diary entry")}</div>
+                <div style={{fontSize:10.5,color:"var(--silver)",marginBottom:5}}>{h.cino||"No CNR"}{c&&c.court_no_desg_name?" · "+c.court_no_desg_name:""}</div>
+                {h.purpose&&<div style={{fontSize:11.5,fontWeight:600,color:pcColor(h.purpose),marginBottom:3}}>{h.purpose}</div>}
+                {h.outcome&&<div style={{fontSize:12,color:"var(--ink3)",whiteSpace:"pre-wrap"}}>{h.outcome}</div>}
+                {h.notes&&<div style={{fontSize:11,color:"var(--silver)",marginTop:4,whiteSpace:"pre-wrap"}}>{h.notes}</div>}
+              </div>
+              <div style={{textAlign:"right",minWidth:90}}>{h.next_date&&<><div style={{fontSize:9.5,color:"var(--silver)",textTransform:"uppercase",fontWeight:700,marginBottom:3}}>Next date</div><Bdg label={fmt(h.next_date)} color={daysUntil(h.next_date)<0?"#c0392b":"#1a8a7a"}/></>}</div>
+            </div>;
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const CalendarView = () => {
     const [calendarCases,setCalendarCases]=useState([]);
     const [calendarLoading,setCalendarLoading]=useState(false);
@@ -1451,6 +1510,7 @@ function MercuryPCMS() {
           {view==="dashboard"  &&<Dashboard/>}
           {view==="cases"      &&<CasesView/>}
           {view==="calendar"   &&<CalendarView/>}
+          {view==="diary"      &&<DiaryView/>}
           {view==="tasks"      &&<TasksView/>}
           {view==="fees"       &&<FeesView/>}
           {view==="analytics"  &&<AnalyticsView/>}
