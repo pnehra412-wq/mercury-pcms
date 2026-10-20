@@ -578,7 +578,8 @@ function MercuryPCMS() {
     const loadChatLinks = async () => {
       setChatLinksLoading(true);
       try {
-        const r = await fetch(`https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino=${encodeURIComponent(c.cino)}`);
+        const sessionResult=await authClient.auth.getSession(); const session=sessionResult.data&&sessionResult.data.session; if(!session||!session.access_token)throw new Error("Please sign in again.");
+        const r = await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats?cino="+encodeURIComponent(c.cino),{headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token}});
         const j = await r.json();
         if(r.ok && Array.isArray(j.chats)) setChatLinks(j.chats);
       } catch(e) { console.error("loadChatLinks",e); }
@@ -639,9 +640,10 @@ function MercuryPCMS() {
       if(!chatUrl.trim() || chatSaving) return;
       setChatSaving(true);
       try {
+        const sessionResult=await authClient.auth.getSession(); const session=sessionResult.data&&sessionResult.data.session; if(!session||!session.access_token)throw new Error("Please sign in again.");
         const r = await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/case-ai-chats", {
           method:"POST",
-          headers:{"Content-Type":"application/json"},
+          headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},
           body:JSON.stringify({
             cino:c.cino,
             provider:chatProvider,
