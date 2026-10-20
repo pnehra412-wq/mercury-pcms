@@ -45,8 +45,32 @@ begin
     select 1 from public.document_analysis a
     where a.cino is not null and not exists (select 1 from public.cases c where c.cino=a.cino)
   ) then raise exception 'Owner migration aborted: document_analysis contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.case_ai_chats x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: case_ai_chats contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.case_contacts x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: case_contacts contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.case_issues x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: case_issues contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.case_notes x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: case_notes contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.court_watch x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: court_watch contains unmatched CINO'; end if;
+  if exists (
+    select 1 from public.fees x
+    where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
+  ) then raise exception 'Owner migration aborted: fees contains unmatched CINO'; end if;
 end
-$$;
+$;
 
 -- owner_id is independent of CINO so unlinked documents and analyses are retained.
 do $$
