@@ -11,12 +11,12 @@ create table public.tasks (id bigserial primary key, cino text, description text
 create table public.hearing_history (id bigserial primary key, cino text, hearing_date date);
 create table public.documents (id bigserial primary key, cino text, file_path text, file_data text);
 create table public.document_analysis (id bigserial primary key, document_id bigint, cino text, analysis jsonb);
-create table public.case_ai_chats (id bigserial primary key, case_id bigint, chat jsonb);
-create table public.case_contacts (id bigserial primary key, case_id bigint, contact jsonb);
-create table public.case_issues (id bigserial primary key, case_id bigint, issue text);
-create table public.case_notes (id bigserial primary key, case_id bigint, note text);
+create table public.case_ai_chats (id bigserial primary key, cino text not null, chat jsonb);
+create table public.case_contacts (id bigserial primary key, cino text not null, contact jsonb);
+create table public.case_issues (id bigserial primary key, cino text not null, issue text);
+create table public.case_notes (id bigserial primary key, cino text not null, note text);
 create table public.court_watch (id bigserial primary key, cino text, watch jsonb);
-create table public.fees (id bigserial primary key, case_id bigint, amount numeric);
+create table public.fees (id bigserial primary key, cino text, amount numeric);
 
 -- Test roles mimic Supabase API roles; they exist only in this disposable database.
 create role anon;
