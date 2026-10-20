@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-20-calendar-v1"/>
+<meta name="mercury-build" content="2026-10-20-calendar-v2"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -90,8 +90,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   .mercury-mobile-nav .nav-count{font-size:8px;background:#d4891a;color:#fff;border-radius:8px;padding:0 4px;margin-left:2px}
   .mercury-case-sheet{width:100% !important;max-width:none !important;height:100dvh !important;height:100vh !important;border-radius:0 !important}
   .mercury-case-sheet .case-sheet-scroll{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px)) !important}
-  #root [style*="grid-template-columns"]{grid-template-columns:1fr !important}
-  #root [style*="grid-template-columns"] > *{grid-column:auto !important}
+  /* Preserve intentional multi-column grids, especially the seven-column hearing calendar. */
   .mercury-case-sheet .case-tabs{position:sticky;top:0;z-index:3;background:var(--white)}
   .mercury-case-sheet .case-tabs button{padding:10px 13px !important;min-height:42px}
   .mercury-case-sheet .case-header-title{font-size:14px !important}
