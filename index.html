@@ -390,6 +390,7 @@ function MercuryPCMS() {
   }, [cases,searchQ,fDist,fType,sortBy,caseQuickFilter]);
 
   const openCase = c => { setDetail(c); setView("cases"); };
+  const openOverdueCases = () => { setSearchQ(""); setFDist("All"); setFType("All"); setSortBy("date"); setCaseQuickFilter("overdue"); setView("cases"); };
 
   const NAV = [
     {id:"dashboard",icon:"home",  label:"Dashboard"},
@@ -443,7 +444,7 @@ function MercuryPCMS() {
             {label:"Total Cases",    val:cases.length,         icon:"list",  color:"var(--gold)",  action:()=>setView("cases")},
             {label:"Next 7 Days",    val:next7.length,         icon:"bell",  color:"var(--amber)", action:()=>setView("calendar")},
             {label:"Today",          val:todayCases.length,    icon:"alert", color:"var(--rose)",  action:()=>setView("calendar")},
-            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:()=>{setCaseQuickFilter("overdue");setView("cases");}},
+            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:openOverdueCases},
             {label:"No Next Date",   val:missingDate.length,    icon:"cal", color:"#7a5b9e", action:()=>setView("cases")},
             {label:"Pending Tasks",  val:pendTasks.length,     icon:"task",  color:"var(--teal)",  action:()=>setView("tasks")},
             {label:"Fees Received",  val:`₹${(totalFees/1000).toFixed(0)}k`,icon:"fee",color:"#1a6aa8",action:()=>setView("fees")},
@@ -529,7 +530,7 @@ function MercuryPCMS() {
         </div>
 
         {overdue.length>0&&(
-          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCaseQuickFilter("overdue");setView("cases");}}>
+          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={openOverdueCases}>
             <Ic n="alert" size={14} color="var(--rose)"/>
             <span style={{fontSize:12.5,color:"var(--rose)",fontWeight:600}}>{overdue.length} past-date hearing{overdue.length>1?"s":""} — please update next dates</span>
             <Btn sm v="rose" style={{marginLeft:"auto"}}>View</Btn>
@@ -1479,7 +1480,7 @@ function MercuryPCMS() {
       if(unit==="month")d=new Date(current.getFullYear(),current.getMonth()+amount,1,12,0,0);
       else if(unit==="week")d=new Date(current.getFullYear(),current.getMonth(),current.getDate()+7*amount,12,0,0);
       else d=new Date(current.getFullYear(),current.getMonth(),current.getDate()+amount,12,0,0);
-      const next=dateKey(d);setSelectedDate(next);setCalMo(new Date(d.getFullYear(),d.getMonth(),1));
+      const next=dateKey(d);setSelectedDate(next);
     };
     useEffect(()=>{
       let cancelled=false;
@@ -1512,7 +1513,7 @@ function MercuryPCMS() {
     const viewLabel=calendarMode==="month"?monthLabel:calendarMode==="week"?(fmt(dateKey(weekDays[0]))+" – "+fmt(dateKey(weekDays[6]))):calendarMode==="day"?fmt(selectedDate):"Upcoming hearings";
     const dayButton=(d,compact=false)=>{
       const key=dateKey(d),hearings=byDate[key]||[],today=key===TODAY,selected=key===selectedDate;
-      const chooseDate=()=>{setSelectedDate(key);setCalMo(new Date(d.getFullYear(),d.getMonth(),1));setCalendarMode("day");};
+      const chooseDate=()=>{setSelectedDate(key);setCalendarMode("day");};
       return <div key={key} className="mercury-calendar-day-card" style={{textAlign:"left",minWidth:0,minHeight:compact?150:104,border:"1px solid "+(selected?"#b69a50":"var(--border)"),borderRadius:compact?8:5,background:selected?"#fff8e6":today?"#f2f7ff":"white",padding:compact?"7px 6px":"5px",color:"var(--ink)",display:"flex",flexDirection:"column",gap:5,boxSizing:"border-box"}}>
         <button type="button" className="mercury-calendar-date-button" aria-label={"Open hearings for "+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} onClick={chooseDate} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:3,width:"100%",minHeight:compact?28:25,padding:"3px 5px",border:0,borderRadius:5,background:today?"#dcecff":selected?"#f4e5b8":"transparent",color:today?"#175da0":"var(--ink)",fontSize:compact?11:12,fontWeight:today||selected?850:650,textAlign:"left",cursor:"pointer"}}>
           <span>{compact?d.toLocaleDateString("en-IN",{weekday:"short"})+" · "+d.getDate():d.getDate()}</span>{today&&<span style={{fontSize:8,fontWeight:850}}>TODAY</span>}
@@ -1539,7 +1540,7 @@ function MercuryPCMS() {
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn><Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn></div>
       </div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 12px",background:"white",border:"1px solid var(--border)",borderRadius:11,boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:7}}><Btn sm v="ghost" onClick={()=>shiftDate(-1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>‹</Btn><Btn sm v="ghost" onClick={()=>shiftDate(1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>›</Btn><div style={{fontSize:15,fontWeight:800,minWidth:150}}>{viewLabel}</div><Btn sm v="gold" onClick={()=>{setSelectedDate(TODAY);setCalMo(new Date());}}>Today</Btn></div>
+        <div style={{display:"flex",alignItems:"center",gap:7}}><Btn sm v="ghost" onClick={()=>shiftDate(-1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>‹</Btn><Btn sm v="ghost" onClick={()=>shiftDate(1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>›</Btn><div style={{fontSize:15,fontWeight:800,minWidth:150}}>{viewLabel}</div><Btn sm v="gold" onClick={()=>setSelectedDate(TODAY)}>Today</Btn></div>
         <div style={{display:"flex",gap:3,padding:3,borderRadius:9,background:"var(--paper)",border:"1px solid var(--border)"}}>{[["month","Month"],["week","Week"],["day","Day"],["agenda","Agenda"]].map(([key,label])=><button key={key} onClick={()=>setCalendarMode(key)} style={{border:0,borderRadius:7,padding:"7px 10px",fontSize:10.5,fontWeight:800,cursor:"pointer",background:calendarMode===key?"var(--navy)":"transparent",color:calendarMode===key?"white":"var(--ink3)"}}>{label}</button>)}</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
