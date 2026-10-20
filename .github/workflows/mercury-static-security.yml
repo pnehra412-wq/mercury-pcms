@@ -1,0 +1,87 @@
+name: Mercury PCMS free static guardrails
+
+on:
+  push:
+    branches:
+      - security-hardening-2026-10-19
+  pull_request:
+    branches:
+      - phase-0-safe-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-security-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check guardrail script
+        run: node --check scripts/mercury-security-static-check.mjs
+      - name: Run dependency-free static security checks
+        run: node scripts/mercury-security-static-check.mjs
+      - name: Set up Deno for Edge Function type checks
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check modified Edge Functions
+        run: |
+          deno check supabase/functions/_shared/mercury-auth.ts
+          deno check supabase/functions/get-document-url/index.ts
+          deno check supabase/functions/prepare-document-share/index.ts
+          deno check supabase/functions/case-ai-chats/index.ts
+          deno check supabase/functions/confirm-document-analysis/index.ts
+          deno check supabase/functions/capture-mobile-order/index.ts
+          deno check supabase/functions/capture-court-order/index.ts
+          deno check supabase/functions/analyze-court-document/index.ts
+          deno check supabase/functions/mercury-office/index.ts
+          deno check supabase/functions/publish-mercury-web/index.ts
+
+  owner-migration-postgres-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Apply owner migration to disposable PostgreSQL fixture
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-fixture.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-seed.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql
+          docker exec -i "$PG_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/owner-migration-assertions.sql
+      - name: Verify migration aborts when no Auth owner exists
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG_CONTAINER" createdb -U postgres mercury_no_owner
+          docker exec "$PG_CONTAINER" psql -U postgres -d mercury_no_owner -v ON_ERROR_STOP=1 -c "create schema auth; create table auth.users (id uuid primary key);"
+          if docker exec -i "$PG_CONTAINER" psql -U postgres -d mercury_no_owner -v ON_ERROR_STOP=1 < supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql; then
+            echo "ERROR: migration unexpectedly succeeded with zero Auth users" >&2
+            exit 1
+          else
+            echo "PASS: migration safely aborted with zero Auth users"
+          fi
+
+
