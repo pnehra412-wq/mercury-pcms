@@ -54,6 +54,7 @@ declare
   t text;
   v_owner uuid;
   v_seq regclass;
+  v_has_other_owner boolean;
   p record;
 begin
   select owner_id into strict v_owner from pg_temp.mercury_owner_migration_owner;
@@ -66,8 +67,8 @@ begin
 
     -- Never silently reassign records already attributed to a different owner.
     execute format('select exists(select 1 from public.%I where owner_id is not null and owner_id <> $1)', t)
-      into p using v_owner;
-    if p.exists then
+      into v_has_other_owner using v_owner;
+    if v_has_other_owner then
       raise exception 'Owner migration aborted: public.% has owner_id values for another user', t;
     end if;
 
