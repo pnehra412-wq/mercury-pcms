@@ -46,7 +46,8 @@ const protectedFunctions = [
 for (const name of protectedFunctions) {
   const src = read(`supabase/functions/${name}/index.ts`);
   check(`${name} verifies JWT`, src.includes("authenticateMercuryRequest(req)"), "shared authentication helper call missing");
-  check(`${name} contains owner scoping`, src.includes("owner_id"), "owner_id scoping is absent; review before release");
+  const hasOwnerPredicate = /\.eq\(["']owner_id["'],\s*auth\.user\.id\)/.test(src) || /owner_id=eq\.\$\{auth\.user\.id\}/.test(src);
+  check(`${name} applies an owner predicate to queries`, hasOwnerPredicate, "owner_id appears to be missing from an actual query predicate; review before release");
 }
 for (const name of ["capture-court-order", "analyze-court-document", "get-document-url"]) {
   const src = read(`supabase/functions/${name}/index.ts`);
