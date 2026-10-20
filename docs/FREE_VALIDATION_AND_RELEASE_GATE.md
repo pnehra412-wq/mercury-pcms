@@ -51,3 +51,13 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 - [GitHub Actions run 39366551236](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39366551236) passed on commit `f737204965078105fe87d69d5ba2946e03db5919`.
 - This run includes the CORS allowlist/fallback checks for `get-document-url`, plus the Deno type checks for the listed Edge Functions.
 - The previous type-check failures were fixed and the full configured job passed. This still does not prove runtime correctness, owner/RLS enforcement, browser/device compatibility, or migration safety.
+
+
+## Production view remediation and guarded owner migration — 2026-10-20
+
+- Production migration `secure_office_views_security_invoker` has been applied and verified. Both `office_court_watch` and `office_document_inbox` now have `security_invoker=true`; `anon` no longer has SELECT, and `authenticated` retains SELECT. The two corresponding view findings no longer appear in the latest Security Advisor response.
+- The latest advisor still reports seven RLS-enabled tables without policies: `case_ai_chats`, `case_contacts`, `case_issues`, `case_notes`, `court_watch`, `document_analysis`, and `fees`.
+- The existing permissive `public` policies on `cases`, `tasks`, `hearing_history`, and `documents` remain a critical exposure. They must be replaced together with ownership backfill; do not claim full production security until that is completed.
+- Added guarded SQL migration `supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql`. It aborts unless exactly one Auth user exists, backfills all current rows (including documents/analysis with null CINO), removes old policies, applies owner-only policies, revokes anonymous/public table privileges, and adds retry-idempotency references. It is committed on the branch but NOT applied to production.
+- Latest configured static and Deno validation passed: [GitHub Actions run 39367450466](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39367450466). This checks source/type safety, not runtime RLS or migration behavior.
+- Remaining release blocker: establish the intended single owner in Supabase Auth, verify backup restoration including Storage bytes, test the guarded migration in a free isolated database, then run cross-user/anonymous negative tests before deployment. No paid branch/project was created.
