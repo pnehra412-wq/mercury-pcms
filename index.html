@@ -368,7 +368,7 @@ function MercuryPCMS() {
 
   const filtered = useMemo(() => {
     let out = [...cases];
-    if(searchQ){const q=searchQ.trim().toLowerCase();if(q)out=out.filter(c=>[c.cino,c.petparty_name,c.resparty_name,c.note,c.notes_adv,c.purpose_name,c.type_name,c.court_no_desg_name,c.district_name,c.establishment_name].some(v=>String(v||"").toLowerCase().includes(q)));}
+    if(searchQ){const q=searchQ.trim().toLowerCase();if(q)out=out.filter(c=>[c.cino,c.petparty_name,c.resparty_name,c.note,c.notes_adv,c.purpose_name,c.type_name,c.court_no_desg_name,c.district_name,c.establishment_name].some(v=>String(v??"").toLowerCase().includes(q)));}
     if(fDist!=="All") out=out.filter(c=>c.district_name===fDist);
     if(fType!=="All") out=out.filter(c=>c.type_name===fType);
     if(sortBy==="date") out.sort((a,b)=>new Date(a.date_next_list)-new Date(b.date_next_list));
