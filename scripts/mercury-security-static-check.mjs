@@ -48,6 +48,12 @@ for (const name of protectedFunctions) {
   check(`${name} verifies JWT`, src.includes("authenticateMercuryRequest(req)"), "shared authentication helper call missing");
   check(`${name} contains owner scoping`, src.includes("owner_id"), "owner_id scoping is absent; review before release");
 }
+for (const name of ["capture-court-order", "analyze-court-document"]) {
+  const src = read(`supabase/functions/${name}/index.ts`);
+  check(`${name} handles CORS preflight`, src.includes('req.method === "OPTIONS"'), "OPTIONS preflight handler missing");
+  check(`${name} avoids wildcard CORS`, !src.includes('"Access-Control-Allow-Origin": "*"'), "wildcard CORS remains");
+  check(`${name} uses explicit origin allowlist`, src.includes("ALLOWED_ORIGINS.has(origin)"), "explicit origin allowlist missing");
+}
 const office = read("supabase/functions/mercury-office/index.ts");
 check("mercury-office authenticates API requests", office.includes("authenticateMercuryRequest(req)"), "authenticated API route missing");
 check("mercury-office query is owner scoped", office.includes("owner_id=eq.") && office.includes("auth.user.id"), "case API query lacks owner filter");
