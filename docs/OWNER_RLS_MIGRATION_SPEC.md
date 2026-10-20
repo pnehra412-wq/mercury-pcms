@@ -1,6 +1,6 @@
 # Mercury PCMS — Owner/RLS Migration Specification (NOT EXECUTABLE SQL)
 
-Status: design specification only. No migration file has been generated or applied.
+Status: guarded migration drafted on the review branch; not applied to production. File: `supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql`.
 Target: the single-user Mercury PCMS model.
 Production project ref: `hmtcnatqowokeyrdjujq`.
 
@@ -91,6 +91,6 @@ Add a unique partial index for non-null `source_document_analysis_id` on each ta
 - Record counts, relationship counts, and document hashes match the pre-migration baseline.
 - Rollback must not re-enable the broad public policies. If a safe rollback cannot preserve confidentiality, stop and use a forward fix instead.
 
-## Tooling and no-fee limitation
+## Implementation status\n\n- Production views `office_court_watch` and `office_document_inbox` have now been changed to `security_invoker=true`; anonymous SELECT was revoked and authenticated SELECT retained. Read-only verification confirmed both settings and grants.\n- The Security Advisor no longer reports the two previously flagged SECURITY DEFINER views; seven RLS-enabled tables still have no policies.\n- The owner migration is guarded to abort unless exactly one Auth user exists. It backfills all existing rows to that verified owner, removes permissive legacy policies on the eleven application tables, installs owner policies, revokes anonymous/public table grants, and adds idempotency references for analysis confirmation.\n- The migration has not been applied because the connected project currently has no verified owner identity and there is no free isolated database for runtime testing. Applying it before the intended owner account exists would intentionally fail; bypassing that guard would be unsafe.\n\n## Tooling and no-fee limitation
 
 The connected environment has no local Supabase CLI or Deno runtime, and the user has instructed that fees must be avoided. No Supabase development branch/project will be created. Free GitHub Actions now runs Node static guardrails and Deno type checks for the modified Edge Functions; the latest code-validation run passed at commit `1c28662adfb85b5127ca2f3e06c72b3faa39f8b2`. This is source/type validation only, not an Edge Function runtime test or database migration test. The ownership migration therefore remains a design specification, not executable SQL. Before any production migration, obtain a verified recovery point and separate Storage backup, create/verify the intended owner Auth account, generate the actual migration using `supabase migration new` in a real project workspace, and validate it in a genuinely free isolated database environment. If no such environment exists, do not deploy the schema/function changes.
