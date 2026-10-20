@@ -12,6 +12,9 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
+ // Bound legacy inline-file migration even when metadata claims a smaller size.
+const MAX_LEGACY_FILE_BYTES = 25 * 1024 * 1024;
+
 function safeFileName(value: unknown, fallback: string) {
   const name = String(value || fallback).replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 180);
   return name || fallback;
@@ -77,6 +80,13 @@ Deno.serve(async (req: Request) => {
         const base64 = (match ? match[2] : raw).replace(/\s/g, "");
         if (!base64 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 === 1) {
           return json({ error: "A legacy document has an invalid encoded file" }, 422);
+        }
+        // Base64 is roughly 4/3 the byte size; reject oversized input before
+        // allocating the decoded Uint8Array to avoid memory exhaustion.
+        const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+        const estimatedBytes = Math.floor(base64.length * 3 / 4) - padding;
+        if (estimatedBytes > MAX_LEGACY_FILE_BYTES) {
+          return json({ error: "Legacy document exceeds the 25 MB migration limit" }, 413);
         }
         mime = doc.mime_type || match?.[1] || "application/octet-stream";
 
