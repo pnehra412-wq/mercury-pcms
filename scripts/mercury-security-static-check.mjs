@@ -94,7 +94,8 @@ const ownerMigration = read("supabase/migrations/20261020041000_owner_scoped_rls
 check("Owner migration aborts unless exactly one Auth user exists", ownerMigration.includes("v_user_count <> 1") && ownerMigration.includes("expected exactly one Auth user"), "missing single-owner preflight");
 check("Owner migration preserves unlinked documents", ownerMigration.includes("owner_id is independent of CINO") && ownerMigration.includes("update public.%I set owner_id = $1 where owner_id is null"), "owner backfill may skip unlinked records");
 check("Owner migration removes old permissive policies before owner policy", ownerMigration.includes("drop policy %I on public.%I") && ownerMigration.includes("for all to authenticated using (owner_id = (select auth.uid()))"), "owner policy may be bypassed by old permissive policy");
-check("Owner migration revokes anonymous table access", ownerMigration.includes("revoke all privileges on table public.%I from anon, public"), "anonymous/public table privileges remain");
+check("Owner migration revokes legacy table grants before least-privilege grants", ownerMigration.includes("revoke all privileges on table public.%I from anon, authenticated, public") && ownerMigration.includes("grant select, insert, update, delete on table public.%I to authenticated"), "old authenticated table grants may survive the owner policy migration");
+check("Owner migration revokes legacy sequence grants", ownerMigration.includes("revoke all privileges on sequence %s from anon, authenticated, public"), "old authenticated sequence grants may survive the owner policy migration");
 check("Owner migration does not erase document bytes", !/update public\.documents\s+set\s+file_data\s*=\s*null/i.test(ownerMigration), "migration clears legacy document contents");
 
 for (const result of checks) {
