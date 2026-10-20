@@ -689,6 +689,7 @@ function MercuryPCMS() {
         setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,petparty_name:petitioner,resparty_name:respondent}:x));
         setDetail(updated);
         setPartyForm({petparty_name:petitioner,resparty_name:respondent});
+        await logActivity(c.cino,"parties_updated","Updated case party names",{petitioner,respondent});
         setEditingParty(false);
         notify("✅ Party names updated","var(--teal)");
       }else{
@@ -1037,7 +1038,7 @@ function MercuryPCMS() {
                       {tk.done&&<Ic n="check" size={10} color="white"/>}
                     </div>
                     <div style={{flex:1}}><div style={{fontSize:12.5,textDecoration:tk.done?"line-through":"none",color:tk.done?"var(--silver)":"var(--ink)"}}>{tk.title}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                    <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                    <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
                   </div>
                 ))}
               </div>
@@ -1504,9 +1505,9 @@ function MercuryPCMS() {
             {pend.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>All caught up! ✅</div>}
             {pend.map(tk=>{const c=cases.find(x=>x.cino===tk.cino);return(
               <div key={tk.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"flex-start"}}>
-                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={async()=>{await sb.from("tasks").update({done:true},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:true}:x));}}/>
+                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={async()=>{await sb.from("tasks").update({done:true},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:true}:x));await logActivity(tk.cino||null,"task_completed","Completed task: "+tk.title,{task_id:tk.id});}}/>
                 <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:500}}>{tk.title}</div>{c&&<div style={{fontSize:11,color:"var(--gold)",marginTop:1,cursor:"pointer"}} onClick={()=>openCase(c)}>{partyLabel(c)}</div>}<div style={{fontSize:11,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
               </div>
             );})}
           </Card>
@@ -1515,7 +1516,7 @@ function MercuryPCMS() {
             {done.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>No completed tasks</div>}
             {done.map(tk=>(
               <div key={tk.id} style={{padding:"9px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"center",opacity:0.55}}>
-                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={async()=>{await sb.from("tasks").update({done:false},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:false}:x));}}>
+                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={async()=>{await sb.from("tasks").update({done:false},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:false}:x));await logActivity(tk.cino||null,"task_reopened","Reopened task: "+tk.title,{task_id:tk.id});}}>
                   <Ic n="check" size={10} color="white"/>
                 </div>
                 <div style={{flex:1,fontSize:12.5,textDecoration:"line-through"}}>{tk.title}</div>
@@ -1684,7 +1685,7 @@ function MercuryPCMS() {
   const AddFeeModal = () => {
     const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(Array.isArray(res)&&res.length>0)setFees(f=>[...f,...res]);setAddFee(null);notify("✅ Fee saved");setSaving(false);};
+    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(Array.isArray(res)&&res.length>0){setFees(f=>[...f,...res]);await logActivity(form.cino||null,"fee_entry_created","Created fee ledger entry",{client_name:form.client_name,amount_agreed:form.amount_agreed,amount_paid:form.amount_paid});}setAddFee(null);notify("✅ Fee saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddFee(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:480,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1706,7 +1707,7 @@ function MercuryPCMS() {
   const AddCaseModal = () => {
     const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:"",case_status:"Pending"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,user_id:authUser.id,case_status:"Pending"});if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
+    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,user_id:authUser.id,case_status:"Pending"});if(Array.isArray(res)&&res.length>0){setCases(cs=>[...cs,...res]);await logActivity(form.cino,"case_created","Created case record",{case_type:form.type_name});}setAddCase(false);notify("✅ Case saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddCase(false)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:520,padding:22,boxShadow:"var(--shadow-lg)",maxHeight:"90vh",overflowY:"auto"}}>
