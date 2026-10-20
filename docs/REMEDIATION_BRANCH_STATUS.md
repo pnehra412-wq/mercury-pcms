@@ -62,7 +62,7 @@ The live deployed versions remain unchanged. Configure the owner ID after the in
 
 1. **Schema migration:** add and backfill `owner_id` on all application tables, enforce owner-consistent relationships, revoke anonymous access, add the appropriate authenticated grants, and make the two office views security-invoker. Also add the unique `source_document_analysis_id` references on `hearing_history` and `tasks` required for idempotent order confirmation. Preserve the current rows and the three unlinked documents/one unlinked analysis row. The migration is not written or applied yet.
 2. **Initial owner account:** there are zero Auth users. Do not invent an owner UUID or place credentials in GitHub/chat. Create the account through Supabase Auth administration and verify the intended owner.
-3. **Isolated test environment:** no Supabase development branch exists. Branch creation may incur compute charges; none was created.
+3. **Isolated test environment:** no Supabase development branch exists. The user has directed that fees be avoided. Do not create a billable branch; use free local/static checks and do not deploy changes that require isolated database validation.
 4. **Backups:** verify database restoreability and separately recoverable Storage bytes before production changes.
 5. **`capture-shared-court-order`:** deployed metadata is available, but the connector returned an empty source body. Its behavior and authorization cannot be verified or patched safely until its source is retrieved.
 6. **Hard-coded deployed credentials:** the branch versions of `mercury-office` and `publish-mercury-web` remove the source literals, but the live versions still contain the old values. Rotate/invalidate them only as part of an approved transition.
@@ -99,7 +99,7 @@ Do not treat the static checks as a successful build or security certification.
 - Re-ran the live Supabase Security Advisor: the same seven RLS-enabled/no-policy tables and two SECURITY DEFINER views remain reported. No production changes were made.
 - Reconfirmed live `auth.users` count is 0 and the project has no development branches.
 - Reconfirmed the deployed `capture-shared-court-order` function is ACTIVE with `verify_jwt=false`, version 5, but the Supabase connector returned an empty `index.ts` body. The repository also has no `supabase/functions/capture-shared-court-order/` source directory on the remediation branch. This endpoint remains an explicit release blocker; do not replace or disable it until its actual callers and source are recovered.
-- Supabase quoted development-branch compute at USD $0.01344/hour (approximately USD $0.32256 per 24 hours, excluding other charges). No branch was created; explicit cost approval is pending.
+- Supabase quoted development-branch compute at USD $0.01344/hour (approximately USD $0.32256 per 24 hours, excluding other charges). No branch was created. The user has instructed us to avoid fees; do not create a paid branch or request payment approval. Use free local/static checks and document any tests that cannot safely be run without an isolated database.
 - Additional branch-only fix: `capture-mobile-order` no longer returns raw Storage or database error messages to the caller for upload/metadata-insert failures. It emits generic client errors and keeps the details out of the HTTP response.
 - The migration specification remains non-executable. No migration file has been applied or tested because the Auth owner account and isolated test environment are not yet available.
 
@@ -111,11 +111,11 @@ Do not treat the static checks as a successful build or security certification.
 - Reconcile source vs deployed function versions and rotate legacy hard-coded credentials only during an approved transition.
 - Do not mark any security fix as deployed until the corresponding live configuration and negative tests are verified.
 
-## Safe next steps
+## Free-first next steps (user instruction: avoid fees)
 
 1. Obtain a verified database recovery point and separate Storage recovery copy.
 2. Create/confirm the single owner Auth account in Supabase administration.
-3. Obtain approval for an isolated Supabase test branch if its cost is acceptable.
+3. Continue with free local/static checks. If isolated database validation is essential, first investigate a genuinely no-cost option; never create a billable branch or project without a new explicit request.
 4. Generate the migration using the Supabase CLI in a real project workspace, test it against the isolated environment, and compare schema/data before and after.
 5. Retrieve and inspect `capture-shared-court-order` source and finish the remaining function review.
 6. Run the full security and regression matrix.
