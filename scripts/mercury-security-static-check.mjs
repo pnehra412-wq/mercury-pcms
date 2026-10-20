@@ -58,6 +58,9 @@ check("Mobile capture dead extraction block removed", !mobile.includes('let extr
 check("Mobile capture limits PDF size", mobile.includes("25 * 1024 * 1024"), "25 MB file-size cap missing");
 check("Mobile capture does not return raw upload errors", !/return json\(req,\s*\{[^}]*error:\s*\w+Error\.message/s.test(mobile), "possible raw database/storage error exposed");
 
+const sharing = read("supabase/functions/prepare-document-share/index.ts");
+check("Legacy document migration has a decoded-size cap", sharing.includes("MAX_LEGACY_FILE_BYTES") && sharing.includes("estimatedBytes > MAX_LEGACY_FILE_BYTES"), "legacy inline-file migration can allocate oversized decoded content");
+
 const publisher = read("supabase/functions/publish-mercury-web/index.ts");
 check("Publisher no longer uses legacy token literal", !publisher.includes("MERCURY_PUBLISH_TOKEN") && !publisher.includes("MERCURY_WEB_PUBLISH_TOKEN"), "legacy publishing-token reference found");
 const officeLower = office.toLowerCase();
