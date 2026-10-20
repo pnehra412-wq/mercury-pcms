@@ -94,6 +94,23 @@ The live deployed versions remain unchanged. Configure the owner ID after the in
 
 Do not treat the static checks as a successful build or security certification.
 
+## Follow-up review — 2026-10-20
+
+- Re-ran the live Supabase Security Advisor: the same seven RLS-enabled/no-policy tables and two SECURITY DEFINER views remain reported. No production changes were made.
+- Reconfirmed live `auth.users` count is 0 and the project has no development branches.
+- Reconfirmed the deployed `capture-shared-court-order` function is ACTIVE with `verify_jwt=false`, version 5, but the Supabase connector returned an empty `index.ts` body. The repository also has no `supabase/functions/capture-shared-court-order/` source directory on the remediation branch. This endpoint remains an explicit release blocker; do not replace or disable it until its actual callers and source are recovered.
+- Supabase quoted development-branch compute at USD $0.01344/hour (approximately USD $0.32256 per 24 hours, excluding other charges). No branch was created; explicit cost approval is pending.
+- Additional branch-only fix: `capture-mobile-order` no longer returns raw Storage or database error messages to the caller for upload/metadata-insert failures. It emits generic client errors and keeps the details out of the HTTP response.
+- The migration specification remains non-executable. No migration file has been applied or tested because the Auth owner account and isolated test environment are not yet available.
+
+### Follow-up checks still required
+
+- Compile/test the frontend and type-check all Edge Function sources in a real Deno/Supabase workspace.
+- Inspect the full request paths in the Auth gate, especially logout/data clearing and all pre-login network calls.
+- Test document share/upload idempotency and failure ordering; Storage and Postgres writes are not atomic.
+- Reconcile source vs deployed function versions and rotate legacy hard-coded credentials only during an approved transition.
+- Do not mark any security fix as deployed until the corresponding live configuration and negative tests are verified.
+
 ## Safe next steps
 
 1. Obtain a verified database recovery point and separate Storage recovery copy.
