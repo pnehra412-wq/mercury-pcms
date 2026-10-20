@@ -146,3 +146,10 @@ No production action should be taken from this branch until these gates pass.
 - Remaining critical blocker: the frontend sign-in gate does not repair the current broad public database policies. Until ownership columns/policies/grants and the two views are migrated and negative tests pass, the live database must not be described as owner-isolated.
 
 - Opened draft-only PR #1 against `phase-0-safe-foundation` to keep the remediation reviewable without merging or deploying: https://github.com/pnehra412-wq/mercury-pcms/pull/1. It explicitly lists the owner-schema, public-policy, view, unavailable-source, and test blockers. The PR remains unmerged and marked draft.
+
+
+### Repeatable free static guardrails — 2026-10-20
+
+- Added `scripts/mercury-security-static-check.mjs`, a dependency-free Node.js script to check for common regressions in the auth gate, bearer-token handling, shared JWT helper usage, owner-scope markers, mobile upload limits/error sanitization, and legacy credential literals.
+- Ran `node --check` against a local copy of the script; syntax validation passed. The repository itself could not be cloned into the execution container because external network/DNS access is unavailable, so the static script has **not** yet been executed against a complete local checkout.
+- This script is a guardrail only. Its passing checks cannot prove database RLS isolation or replace compilation, runtime, cross-user, and Storage tests.
