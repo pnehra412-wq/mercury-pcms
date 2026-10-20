@@ -850,8 +850,11 @@ function MercuryPCMS() {
     };
 
     const deleteDoc=async(id)=>{
+      const doc=caseDocs.find(x=>x.id===id);
+      if(!window.confirm("Delete this document from Mercury? This cannot be undone from the app."))return;
       await sbReq("DELETE",`documents?id=eq.${id}`);
       setCaseDocs(d=>d.filter(x=>x.id!==id));
+      await logActivity(c.cino,"document_deleted","Deleted "+(doc?.name||"document"),{document_id:id});
       notify("File deleted","var(--rose)");
     };
 
