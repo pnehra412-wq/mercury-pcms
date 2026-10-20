@@ -678,7 +678,7 @@ function MercuryPCMS() {
     const addHistory=async()=>{
       if(!histForm.hearing_date){notify("Please enter the hearing date","var(--amber)");return;}
       setSaving(true);
-      const entry={...histForm,cino:c.cino};
+      const entry={...histForm,cino:c.cino,user_id:authUser.id};
       const res=await sb.from("hearing_history").insert(entry);
       if(Array.isArray(res)&&res.length){
         setHistory(h=>[...h,...res]);
@@ -988,7 +988,7 @@ function MercuryPCMS() {
                       const txt=document.getElementById(`order-${c.cino}`)?.value;
                       if(!txt)return;
                       const today2=TODAY;
-                      const res=await sb.from("hearing_history").insert({cino:c.cino,hearing_date:today2,purpose:"Order",outcome:txt.slice(0,200),notes:"Full order pasted",next_date:null});
+                      const res=await sb.from("hearing_history").insert({cino:c.cino,user_id:authUser.id,hearing_date:today2,purpose:"Order",outcome:txt.slice(0,200),notes:"Full order pasted",next_date:null});
                       if(Array.isArray(res))setHistory(h=>[...h,...res]);
                       notify("✅ Order saved to diary");
                     }}>💾 Save to Diary</Btn>
@@ -1332,7 +1332,7 @@ function MercuryPCMS() {
             "order=date_next_list.asc,court_no_desg_name.asc,petparty_name.asc"
           ].join("&");
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),Accept:"application/json"}
           });
           const j=await r.json();
           if(!r.ok) throw new Error(j?.message||j?.hint||"Calendar query failed");
@@ -1587,7 +1587,7 @@ function MercuryPCMS() {
   const AddTaskModal = () => {
     const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.title)return;setSaving(true);const res=await sb.from("tasks").insert({...form,done:false});if(Array.isArray(res)&&res.length>0)setTasks(ts=>[...ts,...res]);setAddTask(null);notify("✅ Task saved");setSaving(false);};
+    const add=async()=>{if(!form.title)return;setSaving(true);const res=await sb.from("tasks").insert({...form,user_id:authUser.id,done:false});if(Array.isArray(res)&&res.length>0)setTasks(ts=>[...ts,...res]);setAddTask(null);notify("✅ Task saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddTask(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:460,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1609,7 +1609,7 @@ function MercuryPCMS() {
   const AddFeeModal = () => {
     const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert(form);if(Array.isArray(res)&&res.length>0)setFees(f=>[...f,...res]);setAddFee(null);notify("✅ Fee saved");setSaving(false);};
+    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(Array.isArray(res)&&res.length>0)setFees(f=>[...f,...res]);setAddFee(null);notify("✅ Fee saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddFee(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:480,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1631,7 +1631,7 @@ function MercuryPCMS() {
   const AddCaseModal = () => {
     const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:"",case_status:"Pending"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,case_status:"Pending"});if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
+    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,user_id:authUser.id,case_status:"Pending"});if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddCase(false)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:520,padding:22,boxShadow:"var(--shadow-lg)",maxHeight:"90vh",overflowY:"auto"}}>
