@@ -27,3 +27,19 @@ jobs:
         run: node --check scripts/mercury-security-static-check.mjs
       - name: Run dependency-free static security checks
         run: node scripts/mercury-security-static-check.mjs
+      - name: Set up Deno for Edge Function type checks
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check modified Edge Functions
+        run: |
+          deno check supabase/functions/_shared/mercury-auth.ts
+          deno check supabase/functions/get-document-url/index.ts
+          deno check supabase/functions/prepare-document-share/index.ts
+          deno check supabase/functions/case-ai-chats/index.ts
+          deno check supabase/functions/confirm-document-analysis/index.ts
+          deno check supabase/functions/capture-mobile-order/index.ts
+          deno check supabase/functions/capture-court-order/index.ts
+          deno check supabase/functions/analyze-court-document/index.ts
+          deno check supabase/functions/mercury-office/index.ts
+          deno check supabase/functions/publish-mercury-web/index.ts
