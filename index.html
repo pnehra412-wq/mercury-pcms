@@ -238,6 +238,7 @@ function MercuryPCMS() {
   const [fees, setFees]       = useState([]);
   const [history, setHistory] = useState([]);
   const [reminders, setReminders] = useState([]);
+  const [officeRefresh,setOfficeRefresh] = useState(0);
   const [view, setView]       = useState("dashboard");
   const [detail, setDetail]   = useState(null);
   const [searchQ, setSearchQ] = useState("");
@@ -366,6 +367,7 @@ function MercuryPCMS() {
 
   const NAV = [
     {id:"dashboard",icon:"home",  label:"Dashboard"},
+    {id:"office",icon:"search",label:"Case Intelligence"},
     {id:"cases",    icon:"list",  label:"Cases"},
     {id:"calendar", icon:"cal",   label:"Cause List"},
     {id:"diary",    icon:"history",label:"Case Diary"},
@@ -395,6 +397,7 @@ function MercuryPCMS() {
           <button onClick={()=>setView("calendar")}><span className="mercury-action-icon"><Ic n="cal" size={17}/></span><span><strong>Cause list</strong><small>Upcoming hearings</small></span><Ic n="chevron-right" size={16}/></button>
           <button onClick={()=>setView("diary")}><span className="mercury-action-icon"><Ic n="history" size={17}/></span><span><strong>Case diary</strong><small>Proceedings & next dates</small></span><Ic n="chevron-right" size={16}/></button>
           <button onClick={()=>setAddTask("__free__")}><span className="mercury-action-icon"><Ic n="task" size={17}/></span><span><strong>New task</strong><small>Record a follow-up</small></span><Ic n="chevron-right" size={16}/></button>
+          <button onClick={()=>setView("office")}><span className="mercury-action-icon"><Ic n="search" size={17}/></span><span><strong>Case intelligence</strong><small>Search orders & proceedings</small></span><Ic n="chevron-right" size={16}/></button>
         </section>
         {/* Status */}
         <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--white)",borderRadius:8,padding:"8px 14px",border:"1px solid var(--border)"}}>
@@ -619,6 +622,9 @@ function MercuryPCMS() {
         "District: "+(c.district_name||"Not recorded"),
         "Next hearing: "+(c.date_next_list||"Not recorded"),
         "Purpose: "+(c.purpose_name||"Not recorded"),
+        "Latest order date: "+(c.latest_order_date||"Not recorded"),
+        "Latest order summary: "+(c.latest_order_crux||"Not recorded"),
+        "Court-directed/advocate action: "+(c.latest_order_action||"Not recorded"),
         "Status: "+(c.case_status||"Not recorded"),
         "",
         "CHAMBER NOTES",
@@ -714,6 +720,8 @@ function MercuryPCMS() {
     const [docSearch,setDocSearch]=useState("");
     const visibleCaseDocs=useMemo(()=>{const q=docSearch.trim().toLowerCase();return caseDocs.filter(d=>!q||(d.name||"").toLowerCase().includes(q));},[caseDocs,docSearch]);
     const [docsLoading,setDocsLoading]=useState(false);
+    const [docType,setDocType]=useState("Other");
+    const [orderProcessing,setOrderProcessing]=useState(false);
     const [selectedDocIds,setSelectedDocIds]=useState([]);
     const fileRef=useRef(null);
 
@@ -806,34 +814,34 @@ function MercuryPCMS() {
     };
 
     const handleUpload=async(files)=>{
-      const arr=Array.from(files);
-      if(!arr.length) return;
-      setSaving(true);
-      notify("⏳ Uploading files…","var(--amber)");
-      let uploaded=0;
-      for(const file of arr){
-        // Store file as base64 in documents table (works without Supabase Storage bucket)
-        const reader=new FileReader();
-        await new Promise(resolve=>{
-          reader.onload=async(e)=>{
-            const base64=e.target.result;
-            const res=await sbReq("POST","documents",{
-              cino:c.cino,
-              name:file.name,
-              size:file.size,
-              mime_type:file.type,
-              file_data:base64,
-              doc_type:"general",
-              uploaded_at:new Date().toISOString()
-            });
-            if(Array.isArray(res)&&res.length>0){setCaseDocs(d=>[res[0],...d]);uploaded++;}
-            resolve();
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-      notify(`✅ ${uploaded} file${uploaded>1?"s":""} uploaded permanently`,"var(--teal)");
-      setSaving(false);
+      const arr=Array.from(files||[]); if(!arr.length)return;
+      setSaving(true);let uploaded=0,orders=0;const failures=[];
+      try{
+        for(const file of arr){try{
+          if(docType==="Order"){
+            if(!(file.type==="application/pdf"||/\\.pdf$/i.test(file.name)))throw new Error("Automatic court-order analysis requires a PDF.");
+            setOrderProcessing(true);notify("Uploading and analysing "+file.name+"…","var(--amber)");
+            const sr=await authClient.auth.getSession(),session=sr.data&&sr.data.session;if(!session?.access_token)throw new Error("Please sign in again.");
+            const form=new FormData();form.append("file",file);form.append("doc_type","Order");
+            const response=await fetch(SB_URL+"/functions/v1/capture-mobile-order",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token},body:form});
+            const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.error||"Order analysis failed");
+            orders++;
+            if(data.document_id){const rows=await sbReq("GET","documents?id=eq."+encodeURIComponent(data.document_id)+"&select=*");if(Array.isArray(rows)&&rows[0]&&rows[0].cino===c.cino)setCaseDocs(ds=>[rows[0],...ds.filter(d=>d.id!==rows[0].id)]);}
+            await loadAll();
+            if(data.cino&&data.next_date)notify("Order processed · "+data.cino+" · Next date "+data.next_date+(data.purpose?" · "+data.purpose:""),"var(--teal)");
+            else if(data.cino)notify("Order analysed for "+data.cino+". Review the extracted order details.","var(--amber)");
+            else notify("Order saved. Mercury could not confidently match it; no case was auto-updated.","var(--amber)");
+          }else{
+            const reader=new FileReader();
+            await new Promise((resolve,reject)=>{reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.onload=async(e)=>{try{const res=await sbReq("POST","documents",{cino:c.cino,name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",file_data:e.target.result,doc_type:docType,uploaded_at:new Date().toISOString()});if(Array.isArray(res)&&res.length){setCaseDocs(d=>[res[0],...d]);uploaded++;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:c.cino,entity_type:"document",entity_id:String(res[0].id),action:"document_uploaded",summary:"Uploaded "+file.name,details:{document_type:docType,size:file.size}});}catch(_){}}resolve();}catch(err){reject(err);}};reader.readAsDataURL(file);});
+          }
+        }catch(err){failures.push(file.name+": "+(err.message||"Failed"));}}
+        const fresh=await sbReq("GET","documents?cino=eq."+encodeURIComponent(c.cino)+"&select=*&order=uploaded_at.desc");if(Array.isArray(fresh))setCaseDocs(fresh);
+        if(uploaded)notify(uploaded+" file(s) uploaded","var(--teal)");
+        if(orders&&!failures.length)notify(orders+" order(s) analysed; matched case records refreshed.","var(--teal)");
+        if(failures.length)notify("Upload issue: "+failures.slice(0,2).join("; "),"var(--rose)");
+      }catch(err){notify("Upload failed: "+(err.message||"Unknown error"),"var(--rose)");}
+      finally{setSaving(false);setOrderProcessing(false);if(fileRef.current)fileRef.current.value="";}
     };
 
     const deleteDoc=async(id)=>{
@@ -1043,15 +1051,16 @@ function MercuryPCMS() {
                 >
                   <div style={{fontSize:28,marginBottom:8}}>📁</div>
                   <div style={{fontSize:13,fontWeight:600,color:"var(--ink3)",marginBottom:4}}>Click or Drop Files Here</div>
+                  <div style={{fontSize:11,color:docType==="Order"?"var(--teal)":"var(--silver)",fontWeight:700,marginBottom:7}}>Selected type: {docType}{docType==="Order"?" · automatic case/date/order analysis enabled":""}</div>
                   <div style={{fontSize:11,color:"var(--silver)",marginBottom:12}}>PDF, Word (.doc/.docx), Images — saved permanently to Supabase</div>
                   {/* Doc type categories */}
                   <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginBottom:12}}>
                     {["Plaint","Written Statement","Evidence","Order","FIR","Vakalatnama","Other"].map(dtype=>(
-                      <span key={dtype} style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:5,padding:"3px 9px",fontSize:11,color:"var(--ink3)",cursor:"pointer"}}>{dtype}</span>
+                      <button type="button" key={dtype} onClick={e=>{e.stopPropagation();setDocType(dtype);}} style={{background:docType===dtype?"var(--gold)":"var(--paper)",border:"1px solid "+(docType===dtype?"var(--gold)":"var(--border)"),borderRadius:5,padding:"4px 9px",fontSize:11,color:"var(--ink)",cursor:"pointer",fontWeight:docType===dtype?800:500}}>{dtype}</button>
                     ))}
                   </div>
-                  {saving
-                    ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spin/><span style={{fontSize:12,color:"var(--amber)"}}>Uploading…</span></div>
+                  {(saving||orderProcessing)
+                    ?<div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Spin/><span style={{fontSize:12,color:"var(--amber)"}}>{orderProcessing?"Analysing order and updating case…":"Uploading…"}</span></div>
                     :<Btn v="gold" sm onClick={e=>{e.stopPropagation();fileRef.current&&fileRef.current.click();}}><Ic n="upload" size={13}/>Choose Files</Btn>
                   }
                   <input ref={fileRef} type="file" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt,.xlsx,.xls" style={{display:"none"}} onChange={e=>handleUpload(e.target.files)}/>
@@ -1598,6 +1607,31 @@ function MercuryPCMS() {
     );
   };
 
+  // ── CASE INTELLIGENCE / OFFICE DESK / BACKUP ─────────────────────────────
+  const OfficeView = () => {
+    const [query,setQuery]=useState("");const [docs,setDocs]=useState([]);const [analyses,setAnalyses]=useState([]);const [activity,setActivity]=useState([]);const [busy,setBusy]=useState(false);const [busyBackup,setBusyBackup]=useState(false);
+    useEffect(()=>{let live=true;(async()=>{setBusy(true);const r=await Promise.all([
+      sbReq("GET","documents?select=id,cino,name,size,doc_type,uploaded_at,processing_status,ai_summary,order_date,document_category,source,review_status&order=uploaded_at.desc&limit=1000").catch(()=>[]),
+      sbReq("GET","document_analysis?select=id,document_id,cino,status,order_date,next_date,next_purpose,document_type,crux,court_directions,advocate_action,match_confidence,created_at&order=created_at.desc&limit=1000").catch(()=>[]),
+      sbReq("GET","case_activity?select=id,cino,entity_type,entity_id,action,summary,details,created_at&order=created_at.desc&limit=150").catch(()=>[])
+    ]);if(live){setDocs(Array.isArray(r[0])?r[0]:[]);setAnalyses(Array.isArray(r[1])?r[1]:[]);setActivity(Array.isArray(r[2])?r[2]:[]);setBusy(false);}})();return()=>{live=false;};},[officeRefresh]);
+    const q=query.trim().toLowerCase();
+    const matches=cases.filter(c=>{if(!q)return true;const d=docs.filter(x=>x.cino===c.cino).map(x=>[x.name,x.doc_type,x.ai_summary,x.processing_status].join(" "));const a=analyses.filter(x=>x.cino===c.cino).map(x=>[x.crux,x.court_directions,x.advocate_action,x.next_purpose].join(" "));const hh=history.filter(x=>x.cino===c.cino).map(x=>[x.hearing_date,x.purpose,x.outcome,x.next_date,x.notes].join(" "));return [c.cino,c.petparty_name,c.resparty_name,c.type_name,c.establishment_name,c.district_name,c.court_no_desg_name,c.purpose_name,c.note,c.notes_adv,c.latest_order_crux,c.latest_order_action,c.date_next_list,...d,...a,...hh].filter(Boolean).join(" ").toLowerCase().includes(q);});
+    const exportBackup=async()=>{setBusyBackup(true);try{const names=["cases","documents","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];const backup={format:"MercuryPCMS-backup-v1",created_at:new Date().toISOString(),workspace:authUser?.email||"Mercury",tables:{}};for(const t of names){let all=[],offset=0,b=[];do{b=await sbReq("GET",t+"?select=*&limit=500&offset="+offset);if(!Array.isArray(b))b=[];all.push(...b);offset+=b.length;}while(b.length===500&&offset<10000);backup.tables[t]=all;}const blob=new Blob([JSON.stringify(backup)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="mercury-pcms-backup-"+TODAY+".json";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"backup_exported",summary:"Full Mercury backup exported",details:{table_count:names.length}});}catch(_){}notify("Full backup exported. Store it securely outside this device.","var(--teal)");}catch(e){notify("Backup failed: "+(e.message||"Unknown error"),"var(--rose)");}finally{setBusyBackup(false);}};
+    const pendingTasks=tasks.filter(t=>!t.done).sort((a,b)=>(a.due||"9999-99-99").localeCompare(b.due||"9999-99-99"));
+    const upcoming=[...cases].filter(c=>c.date_next_list).sort((a,b)=>a.date_next_list.localeCompare(b.date_next_list));
+    return <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12,height:"100%",overflowY:"auto",paddingBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:19}}>Case Intelligence & Office Desk</h2><div style={{fontSize:11,color:"var(--silver)",marginTop:3}}>Search case facts, uploaded order summaries, directions and previous proceedings.</div></div><Btn sm v="ghost" onClick={()=>setOfficeRefresh(x=>x+1)} style={{marginLeft:"auto"}}><Ic n="sync" size={12}/>Refresh index</Btn></div>
+      <Card p={12}><div style={{display:"flex",gap:8,alignItems:"center"}}><Ic n="search" size={16} color="var(--silver)"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search parties, CINO, court, order directions, dates, proceedings…" style={{...iS,flex:1}}/></div><div style={{fontSize:10,color:"var(--silver)",marginTop:7}}>{matches.length} matching case(s) · {docs.length} documents indexed · {analyses.length} analyses</div>
+      {busy&&<div style={{padding:12,display:"flex",gap:8,alignItems:"center"}}><Spin/>Loading order index and activity…</div>}
+      {!busy&&matches.slice(0,40).map(c=>{const aa=analyses.find(a=>a.cino===c.cino),dd=docs.filter(d=>d.cino===c.cino);const hh=history.filter(x=>x.cino===c.cino).sort((a,b)=>(b.hearing_date||"").localeCompare(a.hearing_date||""))[0];return <div key={c.id} style={{borderTop:"1px solid var(--border)",padding:"11px 2px",display:"flex",gap:10,alignItems:"flex-start"}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:800}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:3}}>{c.cino} · {c.court_no_desg_name||c.establishment_name||"Court not recorded"} · Next: {fmt(c.date_next_list)} · {c.purpose_name||"Purpose not recorded"}</div>{(c.latest_order_crux||aa?.crux||c.latest_order_action)&&<div style={{fontSize:11.5,lineHeight:1.5,marginTop:6}}><b>Latest order:</b> {c.latest_order_crux||aa?.crux} {c.latest_order_action&&<span><b> Action:</b> {c.latest_order_action}</span>}</div>}{hh&&<div style={{fontSize:10.5,color:"var(--silver)",marginTop:4}>Latest proceeding · {fmt(hh.hearing_date)} · {hh.outcome||hh.purpose||"Recorded"}</div>}{dd.length>0&&<div style={{fontSize:10.5,color:"var(--teal)",marginTop:4}>{dd.length} document(s): {dd.slice(0,3).map(d=>d.name).join(" · ")}</div>}</div><Btn sm v="ghost" onClick={()=>openCase(c)}>Open case</Btn></div>;})}
+      {!busy&&!matches.length&&<div style={{padding:20,textAlign:"center",color:"var(--silver)",fontSize:12}}>No case matches this search.</div>}</Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+      <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:8}}>Next actions required</div>{pendingTasks.slice(0,8).map(t=>{const cc=cases.find(x=>x.cino===t.cino);return <div key={t.id} style={{padding:"8px 0",borderTop:"1px solid var(--border)",fontSize:11.5}}><b>{t.title}</b><div style={{color:"var(--silver)",marginTop:3}}>Due {fmt(t.due)} · {cc?partyLabel(cc):t.cino||"Unlinked task"}</div></div>;})}{!pendingTasks.length&&<div style={{fontSize:11,color:"var(--silver)"}}>No pending tasks recorded.</div>}<div style={{fontWeight:800,fontSize:12,margin:"12px 0 6px"}}>Upcoming hearings</div>{upcoming.slice(0,6).map(c=><button key={c.id} onClick={()=>openCase(c)} style={{display:"flex",justifyContent:"space-between",gap:8,width:"100%",textAlign:"left",padding:"7px 0",border:0,borderTop:"1px solid var(--border)",background:"transparent",cursor:"pointer",fontSize:11}}><span>{partyLabel(c)}</span><b>{fmt(c.date_next_list)}</b></button>)}</Card>
+      <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:4}}>Export & recovery</div><div style={{fontSize:11,color:"var(--silver)",lineHeight:1.6,marginBottom:10}}>Export cases, uploaded document contents, hearing history, tasks, fees, order analyses and activity into a portable JSON backup. Keep copies securely outside this device.</div><Btn v="gold" onClick={exportBackup} disabled={busyBackup}>{busyBackup?<Spin/>:<Ic n="download" size={13}/>}Export full workspace backup</Btn><div style={{fontSize:10,color:"var(--silver)",lineHeight:1.5,marginTop:8}}>This creates a backup file; it does not automatically restore a database. Retain Supabase-managed backups as a second recovery layer. The file may contain confidential client data.</div><div style={{fontWeight:800,fontSize:12,margin:"15px 0 7px"}}>Recent activity</div>{activity.slice(0,8).map(a=><div key={a.id} style={{padding:"7px 0",borderTop:"1px solid var(--border)",fontSize:10.5}}><b>{a.summary||a.action}</b><div style={{color:"var(--silver)",marginTop:2}}>{a.cino||"Workspace"} · {a.created_at?new Date(a.created_at).toLocaleString("en-IN"):""}</div></div>)}{!activity.length&&!busy&&<div style={{fontSize:10.5,color:"var(--silver)"}}>Order processing and document changes will appear here.</div>}</Card></div>
+    </div>;
+  };
+
   // ── MODALS ───────────────────────────────────────────────────────────────
   const AddTaskModal = () => {
     const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
@@ -1732,6 +1766,7 @@ function MercuryPCMS() {
           {view==="tasks"      &&<TasksView/>}
           {view==="fees"       &&<FeesView/>}
           {view==="analytics"  &&<AnalyticsView/>}
+          {view==="office"     &&<OfficeView/>}
         </div>
       </div>
 
