@@ -55,6 +55,9 @@ check("mercury-office query is owner scoped", office.includes("owner_id=eq.") &&
 
 const mobile = read("supabase/functions/capture-mobile-order/index.ts");
 check("Mobile capture dead extraction block removed", !mobile.includes('let extracted = ""'), "unreachable extraction block remains");
+check("Mobile capture has no stale legacy handler tail", !mobile.includes("aiSummary?.order_date") && !mobile.includes("finalOrderDate"), "stale pre-refactor capture handler remains");
+check("Mobile capture catch returns a sanitized error", mobile.includes('error:"Could not process the shared court order"'), "sanitized catch response missing");
+
 check("Mobile capture limits PDF size", mobile.includes("25 * 1024 * 1024"), "25 MB file-size cap missing");
 check("Mobile capture does not return raw upload errors", !/return json\(req,\s*\{[^}]*error:\s*\w+Error\.message/s.test(mobile), "possible raw database/storage error exposed");
 
