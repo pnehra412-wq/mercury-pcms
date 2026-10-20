@@ -20,7 +20,13 @@ for (const [label, pattern] of [
   ["browser reminder permission", /Notification\.requestPermission/],
   ["upcoming hearing reminders", /Mercury cause-list reminder/],
   ["daily hearing reminder guard", /mercury-reminder-hearings-/],
+  ["case document filename search", /Search this case's documents by filename/],
+  ["case drafting brief", /copyCaseDraftingBrief/],
+  ["drafting brief source limitations", /document contents are not included in this brief/],
+  ["task search", /Search tasks/],
+  ["task scope filters", /value="overdue">Overdue only/],
+  ["dashboard quick actions", /mercury-quick-actions/],
   ["local timezone date", /const TODAY = \(\(\)=>\{const d=new Date\(\)/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
-console.log("Mercury PCMS checks passed: JSX parses and diary, exports, local date, and reminders are present.");
+console.log("Mercury PCMS checks passed: JSX parses; dashboard, diary, exports, reminders, document search, task filters, and drafting brief are present.");
