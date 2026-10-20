@@ -62,6 +62,15 @@ check("Mobile capture does not return raw upload errors", !/return json\(req,\s*
 
 const sharing = read("supabase/functions/prepare-document-share/index.ts");
 check("Legacy document migration has a decoded-size cap", sharing.includes("MAX_LEGACY_FILE_BYTES") && sharing.includes("estimatedBytes > MAX_LEGACY_FILE_BYTES"), "legacy inline-file migration can allocate oversized decoded content");
+check("Document sharing does not grant wildcard browser CORS", !sharing.includes('"Access-Control-Allow-Origin": "*"'), "wildcard CORS remains on private document sharing");
+check("Document sharing only echoes explicitly allowed origins", sharing.includes("ALLOWED_ORIGINS.has(origin)") && sharing.includes("function corsHeaders(req: Request)"), "explicit origin allowlist missing");
+
+const chatLinks = read("supabase/functions/case-ai-chats/index.ts");
+check("Case chat links do not fall back to an allowed origin", !chatLinks.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
+check("Case chat links use explicit CORS allowlist", chatLinks.includes("ALLOWED_ORIGINS.has(origin)") && chatLinks.includes("responseHeaders[\"Access-Control-Allow-Origin\"] = origin"), "explicit origin allowlist missing");
+
+check("Mobile capture supports clients without Origin", mobile.includes('if (origin && !ALLOWED_ORIGINS.has(origin))'), "missing Origin is rejected, potentially breaking native share");
+check("Mobile capture does not fall back to an allowed ACAO origin", !mobile.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
 
 const publisher = read("supabase/functions/publish-mercury-web/index.ts");
 check("Publisher verifies JWT", publisher.includes("authenticateMercuryRequest(req)"), "shared authentication helper call missing");
