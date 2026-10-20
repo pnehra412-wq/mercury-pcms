@@ -120,7 +120,7 @@ async function geminiAnalyze(pdfBytes: Uint8Array) {
       if (r.ok) break;
       if (![408,429,500,502,503,504].includes(r.status)) break;
     } catch (e) {
-      raw = String(e?.message || e);
+      raw = e instanceof Error ? e.message : String(e);
       lastStatus = 503;
     }
     await new Promise(resolve => setTimeout(resolve, Math.min(8000, 1000 * Math.pow(2, attempt))));
