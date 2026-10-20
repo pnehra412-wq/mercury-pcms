@@ -103,12 +103,14 @@ begin
 
     execute format('create policy %I on public.%I for all to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()))', t || '_owner_all', t);
 
-    execute format('revoke all privileges on table public.%I from anon, public', t);
+    -- Revoke *all* existing grants first. RLS does not protect TRUNCATE, and
+    -- inherited legacy grants to authenticated must not survive this migration.
+    execute format('revoke all privileges on table public.%I from anon, authenticated, public', t);
     execute format('grant select, insert, update, delete on table public.%I to authenticated', t);
 
     v_seq := pg_get_serial_sequence(format('public.%I', t), 'id')::regclass;
     if v_seq is not null then
-      execute format('revoke all privileges on sequence %s from anon, public', v_seq);
+      execute format('revoke all privileges on sequence %s from anon, authenticated, public', v_seq);
       execute format('grant usage, select on sequence %s to authenticated', v_seq);
     end if;
   end loop;
