@@ -740,7 +740,7 @@ function MercuryPCMS() {
         notify("⏳ Preparing "+chosen.length+" document"+(chosen.length>1?"s":"")+" for sharing…","var(--amber)");
         const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/prepare-document-share",{
           method:"POST",
-          headers:{"Content-Type":"application/json"},
+          headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),"Content-Type":"application/json"},
           body:JSON.stringify({document_ids:chosen.map(d=>d.id)})
         });
         const j=await r.json();
@@ -848,7 +848,7 @@ function MercuryPCMS() {
           notify("⏳ Opening document…","var(--amber)");
           const r=await fetch("https://hmtcnatqowokeyrdjujq.supabase.co/functions/v1/get-document-url",{
             method:"POST",
-            headers:{"Content-Type":"application/json"},
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),"Content-Type":"application/json"},
             body:JSON.stringify({document_id:doc.id})
           });
           const j=await r.json();
