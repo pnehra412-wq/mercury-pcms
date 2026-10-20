@@ -6,13 +6,14 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-05-ai-web-v1"/>
+<meta name="mercury-build" content="2026-10-20-auth-v1"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.0/babel.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -127,42 +128,16 @@ const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // Get the legacy anon key from Supabase — needed for REST API
 // The sb_publishable key is for the new JS client only
 // We use it in the Authorization header as Bearer token
-const sbReq = (method, path, body=null) => new Promise(resolve => {
-  const xhr = new XMLHttpRequest();
-  xhr.open(method, `${SB_URL}/rest/v1/${path}`);
-  xhr.setRequestHeader("apikey", SB_KEY);
-  xhr.setRequestHeader("Authorization", `Bearer ${SB_KEY}`);
-  xhr.setRequestHeader("Content-Type", "application/json");
-  xhr.setRequestHeader("Accept", "application/json");
-  if(method==="POST") xhr.setRequestHeader("Prefer","return=representation,resolution=merge-duplicates");
-  else if(method==="PATCH") xhr.setRequestHeader("Prefer","return=representation");
-  xhr.onload = () => {
-    try {
-      const data = JSON.parse(xhr.responseText);
-      // Check for error response
-      if(data && data.code && data.message) {
-        console.error("Supabase error:", data.message);
-        resolve([]);
-      } else {
-        resolve(data);
-      }
-    } catch(e) { resolve([]); }
-  };
-  xhr.onerror = () => resolve([]);
-  xhr.ontimeout = () => resolve([]);
-  xhr.timeout = 10000;
-  xhr.send(body ? JSON.stringify(body) : null);
-});
-
-const sb = {
-  from: t => ({
-    select: (c="*") => sbReq("GET", `${t}?select=${c}&order=created_at.asc`),
-    insert: d => sbReq("POST", t, d),
-    update: (d, m) => sbReq("PATCH", `${t}?${Object.entries(m).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&")}`, d),
-    delete: m => sbReq("DELETE", `${t}?${Object.entries(m).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&")}`),
-  })
+const authClient = window.supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const sbReq = async (method,path,body=null) => {
+ const result=await authClient.auth.getSession(); const session=result.data&&result.data.session;
+ if(!session||!session.access_token) throw new Error("Please sign in to Mercury.");
+ const headers={apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json",Accept:"application/json"};
+ if(method==="POST") headers.Prefer="return=representation,resolution=merge-duplicates"; else if(method==="PATCH") headers.Prefer="return=representation";
+ const response=await fetch(SB_URL+"/rest/v1/"+path,{method:method,headers:headers,body:body?JSON.stringify(body):undefined});
+ const payload=await response.json().catch(()=>null); if(!response.ok) throw new Error((payload&&(payload.message||payload.hint))||("Supabase request failed ("+response.status+")")); return payload;
 };
-
+const sb={from:t=>({select:(c="*")=>sbReq("GET",t+"?select="+c+"&order=created_at.asc"),insert:d=>sbReq("POST",t,d),update:(d,m)=>sbReq("PATCH",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"),d),delete:m=>sbReq("DELETE",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"))})};
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const TODAY = (()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");})();
 const todayDt = new Date(TODAY+"T00:00:00");
@@ -274,6 +249,7 @@ function MercuryPCMS() {
   const [addCase, setAddCase] = useState(false);
   const [toast, setToast]     = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authUser,setAuthUser]=useState(null), [authReady,setAuthReady]=useState(false), [authEmail,setAuthEmail]=useState("pnehra412@gmail.com"), [authPassword,setAuthPassword]=useState(""), [authBusy,setAuthBusy]=useState(false), [authError,setAuthError]=useState("");
 
   const notify = (msg, color="var(--teal)") => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
 
@@ -286,7 +262,7 @@ function MercuryPCMS() {
         (async()=>{
           const qs="select=*&case_status=eq.Pending&order=date_next_list.asc";
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),Accept:"application/json"}
           });
           const j=await r.json();
           if(!r.ok) throw new Error(j?.message||"Could not load active cases");
@@ -314,7 +290,12 @@ function MercuryPCMS() {
     setLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(()=>{let active=true; authClient.auth.getSession().then(({data:{session}})=>{if(active){setAuthUser(session?session.user:null);setAuthReady(true);}}).catch(()=>{if(active)setAuthReady(true);});
+   const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setTasks([]);setFees([]);setHistory([]);}});
+   return ()=>{active=false;listener.data.subscription.unsubscribe();};},[]);
+  useEffect(()=>{if(authUser)loadAll();},[authUser&&authUser.id]);
+  const signIn=async e=>{e.preventDefault();setAuthBusy(true);setAuthError("");const r=await authClient.auth.signInWithPassword({email:authEmail.trim(),password:authPassword});setAuthBusy(false);if(r.error)setAuthError(r.error.message);else setAuthPassword("");};
+  const signOut=async()=>{await authClient.auth.signOut();setAuthUser(null);};
 
   // Browser notifications repeat every 30 minutes while Mercury is open.
   // Task reminders are individual; hearing reminders are batched once per local day.
@@ -1673,6 +1654,8 @@ function MercuryPCMS() {
     );
   };
 
+  if(!authReady)return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0d1117",color:"#e8c96a"}}>Loading secure Mercury session…</div>;
+  if(!authUser)return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0d1117",padding:20}}><form onSubmit={signIn} style={{width:"100%",maxWidth:420,background:"#1c2333",border:"1px solid #66562e",borderRadius:16,padding:28}}><h1 style={{color:"#e8c96a",fontSize:25}}>⚖ MERCURY PCMS</h1><p style={{color:"#c8d3e0",fontSize:13,margin:"10px 0 22px"}}>Secure sign-in. Public registration is disabled.</p><label style={{color:"#c8d3e0",fontSize:12}}>Email</label><input type="email" required autoComplete="username" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} style={{display:"block",width:"100%",padding:12,margin:"6px 0 14px",borderRadius:8}}/><label style={{color:"#c8d3e0",fontSize:12}}>Password</label><input type="password" required autoComplete="current-password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} style={{display:"block",width:"100%",padding:12,margin:"6px 0 14px",borderRadius:8}}/>{authError&&<p style={{color:"#ff9b91",fontSize:12}}>{authError}</p>}<button disabled={authBusy} style={{width:"100%",padding:12,border:0,borderRadius:8,background:"#c9a84c",fontWeight:800}}>{authBusy?"Signing in…":"Sign in securely"}</button></form></div>;
   // ── LAYOUT ───────────────────────────────────────────────────────────────
   return (
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--paper)"}}>
@@ -1708,6 +1691,7 @@ function MercuryPCMS() {
       {/* Main */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div className="mercury-topbar" style={{background:"var(--white)",borderBottom:"1px solid var(--border)",padding:"10px 18px",display:"flex",alignItems:"center",gap:12,flexShrink:0,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <span style={{fontSize:10,color:"var(--silver)"}}>{authUser.email}</span><button onClick={signOut} style={{border:"1px solid var(--border)",borderRadius:7,padding:"7px 10px",background:"var(--white)",fontSize:11}}>Sign out</button>
           <div className="mercury-search" style={{flex:1,maxWidth:340,display:"flex",alignItems:"center",gap:7,background:"var(--paper)",border:"1px solid var(--border)",borderRadius:7,padding:"6px 11px"}}>
             <Ic n="search" size={13} color="var(--silver)"/>
             <input style={{border:"none",background:"transparent",outline:"none",fontSize:12.5,color:"var(--ink)",flex:1}} placeholder="Search CNR, party, type…" value={searchQ} onChange={e=>{setSearchQ(e.target.value);if(e.target.value)setView("cases");}}/>
