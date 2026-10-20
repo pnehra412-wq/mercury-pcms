@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { authenticateMercuryRequest } from "../_shared/mercury-auth.ts";
-import { extractText, getDocumentProxy } from "npm:unpdf@1.8.1";
 
 const url = Deno.env.get("SUPABASE_URL")!;
 const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -197,59 +196,6 @@ Deno.serve(async (req) => {
       cino: analysisBody?.case_identified || null,
       analysis: analysisBody
     }, analyzed.ok ? 200 : 502);
-  } catch {}
-    }
-
-    const finalOrderDate = aiSummary?.order_date || orderDate;
-    const finalNextDate = aiSummary?.next_date || nextDate;
-    const finalPurpose = aiSummary?.purpose || detectedPurpose;
-    const finalOutcome = aiSummary?.outcome || detectedOutcome;
-
-    const updates:any = {
-      extracted_text: extracted,
-      order_date: finalOrderDate,
-      ai_summary: aiSummary?.summary || `Captured ${totalPages} page order. Outcome: ${finalOutcome}.`,
-      processing_status: match && confidence >= 0.95 ? (newCaseCreated ? "New Case Created - Review" : "Matched - Review") : "Needs Verification",
-      case_match_confidence: confidence
-    };
-    if (match && confidence >= 0.95) updates.cino = match.cino;
-
-    await db.from("documents").update(updates).eq("id",documentId).eq("owner_id", auth.user.id);
-
-    if (match && confidence >= 0.95) {
-      const hearing = await db.from("hearing_history").insert({
-        cino:match.cino, owner_id:auth.user.id, hearing_date:finalOrderDate, purpose:finalPurpose,
-        outcome:finalOutcome, next_date:finalNextDate,
-        notes:aiSummary?.summary || "Order captured from eCourts mobile share."
-      });
-      if (hearing.error) console.error("hearing_history:", hearing.error.message);
-
-      const caseUpdate:any = {};
-      if (finalNextDate) caseUpdate.date_next_list = finalNextDate;
-      if (finalPurpose) caseUpdate.purpose_name = finalPurpose;
-      const note = `Order captured ${finalOrderDate || ""}: ${aiSummary?.summary || finalOutcome}`.trim();
-      if (note) caseUpdate.note = note.slice(0,2000);
-      if (Object.keys(caseUpdate).length) await db.from("cases").update(caseUpdate).eq("cino",match.cino).eq("owner_id", auth.user.id);
-
-      await db.from("court_watch").update({
-        last_checked_at:new Date().toISOString(),
-        last_order_date:finalOrderDate,
-        last_order_fingerprint:fingerprint
-      }).eq("cino",match.cino).eq("owner_id", auth.user.id);
-    }
-
-    return json(req, {
-      ok:true, duplicate:false, document_id:documentId, pages:totalPages,
-      cino:match?.cino || null, detected_cino:cinoRaw, confidence,
-      new_case_created:newCaseCreated,
-      processing_status:updates.processing_status,
-      order_date:finalOrderDate, next_date:finalNextDate, purpose:finalPurpose,
-      ai_enabled:Boolean(aiKey), matched_case:match ? {
-        cino:match.cino, type_name:match.type_name,
-        petitioner:match.petparty_name, respondent:match.resparty_name,
-        court:match.establishment_name
-      } : null
-    });
   } catch {
     console.error("capture-mobile-order: request failed");
     return json(req, { error:"Could not process the shared court order" },500);
