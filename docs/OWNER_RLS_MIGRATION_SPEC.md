@@ -9,7 +9,7 @@ Production project ref: `hmtcnatqowokeyrdjujq`.
 1. Create the intended owner account through Supabase Auth administration. Live `auth.users` currently has 0 rows. Do not insert a guessed UUID or put credentials in GitHub/chat.
 2. Confirm the owner identity through the authenticated session. The migration should abort unless exactly one intended owner is configured for the initial single-user backfill.
 3. Verify a recoverable database restore point and a separate recoverable copy of Storage object bytes. The user reports a backup; restoreability and Storage recovery have not been independently verified.
-4. Create a non-production Supabase branch or isolated project only after cost approval. None exists at present.
+4. **Fee constraint:** the user has directed that no fees be incurred. Do not create a Supabase branch or new project. Use free local/static validation and keep all unverified schema changes out of production.
 5. Re-capture table definitions, FK delete actions, grants, policies, view definitions, Storage policies, row counts, and relationship checks immediately before migration generation.
 
 ## Ownership model
@@ -61,6 +61,8 @@ Add a unique partial index for non-null `source_document_analysis_id` on each ta
 
 ## RLS and grants
 
+**Critical finding:** the frontend sign-in gate is not, by itself, a security boundary. The live `cases`, `tasks`, `hearing_history`, and `documents` policies still have permissive `true` predicates applying to `public`; merely changing the browser bearer token to a signed-in user's token does not isolate records. Do not describe the live system as secured until these policies/grants are replaced and anonymous/other-user negative tests pass.
+
 - Enable RLS on all eleven application tables.
 - Remove the existing broad public policies from `cases`, `tasks`, `hearing_history`, and `documents`.
 - Create owner policies for `authenticated` using `owner_id = auth.uid()` for read/write operations, with matching `WITH CHECK` on inserts and updates.
@@ -76,7 +78,7 @@ Add a unique partial index for non-null `source_document_analysis_id` on each ta
 - Keep `mercury-web` public only for the intended public app assets. Review its three current objects before any visibility change.
 - Preserve current Storage paths and object bytes.
 
-## Required isolated tests
+## Required isolated tests (must pass before release)
 
 - Migration preflight fails safely when Auth user count is 0 or ambiguous.
 - Every existing row receives the intended owner without changing row IDs or document bytes.
@@ -89,6 +91,6 @@ Add a unique partial index for non-null `source_document_analysis_id` on each ta
 - Record counts, relationship counts, and document hashes match the pre-migration baseline.
 - Rollback must not re-enable the broad public policies. If a safe rollback cannot preserve confidentiality, stop and use a forward fix instead.
 
-## Tooling limitation
+## Tooling and no-fee limitation
 
-The connected environment has no Supabase CLI and no Deno runtime; GitHub and Supabase connectors do not provide a non-production database branch for this project. Therefore no executable migration file or runtime test has been claimed. Generate the actual migration with `supabase migration new` in a real project workspace after the preconditions above pass, then test it on the isolated database before any production approval.
+The connected environment has no Supabase CLI or Deno runtime, and the user has instructed that fees must be avoided. No Supabase development branch/project will be created. Therefore this remains a design specification, not executable SQL; no database migration or Edge Function runtime test is claimed. Continue branch-only review and free static checks. Before any production migration, obtain a verified recovery point and separate Storage backup, create/verify the intended owner Auth account, generate the actual migration using `supabase migration new` in a real project workspace, and validate it in a genuinely free isolated database environment. If no such environment exists, do not deploy the schema/function changes.
