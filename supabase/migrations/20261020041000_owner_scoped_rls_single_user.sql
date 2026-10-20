@@ -123,11 +123,11 @@ alter table public.hearing_history
 
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname='tasks_source_document_analysis_id_fkey') then
+  if not exists (select 1 from pg_constraint where conrelid='public.tasks'::regclass and conname='tasks_source_document_analysis_id_fkey') then
     alter table public.tasks add constraint tasks_source_document_analysis_id_fkey
       foreign key (source_document_analysis_id) references public.document_analysis(id) on delete set null;
   end if;
-  if not exists (select 1 from pg_constraint where conname='hearing_history_source_document_analysis_id_fkey') then
+  if not exists (select 1 from pg_constraint where conrelid='public.hearing_history'::regclass and conname='hearing_history_source_document_analysis_id_fkey') then
     alter table public.hearing_history add constraint hearing_history_source_document_analysis_id_fkey
       foreign key (source_document_analysis_id) references public.document_analysis(id) on delete set null;
   end if;
