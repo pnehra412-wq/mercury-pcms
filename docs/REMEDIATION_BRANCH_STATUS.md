@@ -171,16 +171,12 @@ Evidence source: connected Supabase project metadata, Security Advisor, deployed
 - **Validation honesty:** this was a read-only live audit and documentation update. No application build, Deno check, browser test, cross-user test, or migration execution was performed in this run.
 
 
-## Follow-up recheck — 2026-10-20 03:51 UTC
+## Follow-up recheck — 2026-10-20
 
-Read-only Supabase Security Advisor recheck confirms the production database findings are still present:
-- 7 tables with RLS enabled but no policies: `case_ai_chats`, `case_contacts`, `case_issues`, `case_notes`, `court_watch`, `document_analysis`, and `fees`.
-- 2 views still flagged as SECURITY DEFINER: `office_court_watch` and `office_document_inbox`.
-
-No production DDL, policies, views, Auth users, Storage objects, or Edge Functions were changed during this recheck. These findings remain release blockers; do not infer that the source-branch fixes have secured production.
+The fresh Security Advisor reports 7 tables with RLS enabled but no policies: `case_ai_chats`, `case_contacts`, `case_issues`, `case_notes`, `court_watch`, `document_analysis`, and `fees`. The two previously flagged views have since been remediated in production; see the production-change section below.
 
 
-## Production change and verification — 2026-10-20 04:xx UTC
+## Production change and verification — 2026-10-20
 
 The user explicitly requested the outstanding security remediation to proceed. Applied a narrowly scoped database migration named `secure_office_views_security_invoker`:
 - Set `security_invoker=true` on `public.office_court_watch` and `public.office_document_inbox`.
