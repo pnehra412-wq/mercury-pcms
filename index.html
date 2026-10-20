@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-20-views-v3"/>
+<meta name="mercury-build" content="2026-10-20-calendar-v1"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -1447,129 +1447,95 @@ function MercuryPCMS() {
     const [calendarLoading,setCalendarLoading]=useState(false);
     const [calendarError,setCalendarError]=useState("");
     const [calendarMode,setCalendarMode]=useState("month");
-    const y=calMo.getFullYear(),m=calMo.getMonth();
-    const firstDate=`${y}-${String(m+1).padStart(2,"0")}-01`;
-    const nextMonth=new Date(y,m+1,1);
-    const nextDate=`${nextMonth.getFullYear()}-${String(nextMonth.getMonth()+1).padStart(2,"0")}-01`;
-
+    const [selectedDate,setSelectedDate]=useState(TODAY);
+    const anchor=new Date((selectedDate||TODAY)+"T12:00:00");
+    const y=anchor.getFullYear(),m=anchor.getMonth();
+    const monthStart=new Date(y,m,1);
+    const gridStart=new Date(y,m,1-monthStart.getDay());
+    const gridEnd=new Date(gridStart);gridEnd.setDate(gridStart.getDate()+42);
+    const dateKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    const firstDate=dateKey(gridStart),nextDate=dateKey(gridEnd);
+    const shiftDate=(amount,unit)=>{
+      const d=new Date((selectedDate||TODAY)+"T12:00:00");
+      if(unit==="month")d.setDate(1),d.setMonth(d.getMonth()+amount);
+      else if(unit==="week")d.setDate(d.getDate()+7*amount);
+      else d.setDate(d.getDate()+amount);
+      const next=dateKey(d);setSelectedDate(next);setCalMo(new Date(d.getFullYear(),d.getMonth(),1));
+    };
     useEffect(()=>{
       let cancelled=false;
       const loadCalendarCases=async()=>{
-        setCalendarLoading(true); setCalendarError("");
+        setCalendarLoading(true);setCalendarError("");
         try{
-          // IMPORTANT: fetch only the displayed month. The lightweight sb wrapper
-          // does not implement gte/lt chaining, so the calendar uses PostgREST
-          // directly rather than downloading the entire case table.
-          const qs=[
-            "select=*",
-            "date_next_list=gte."+encodeURIComponent(firstDate),
-            "date_next_list=lt."+encodeURIComponent(nextDate),
-            "order=date_next_list.asc,court_no_desg_name.asc,petparty_name.asc"
-          ].join("&");
-          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),Accept:"application/json"}
-          });
+          const qs=["select=*","date_next_list=gte."+encodeURIComponent(firstDate),"date_next_list=lt."+encodeURIComponent(nextDate),"order=date_next_list.asc,court_no_desg_name.asc,petparty_name.asc"].join("&");
+          const sessionResult=await authClient.auth.getSession();
+          const token=sessionResult&&sessionResult.data&&sessionResult.data.session&&sessionResult.data.session.access_token;
+          if(!token)throw new Error("Your secure session has expired. Please sign in again.");
+          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{headers:{apikey:SB_KEY,Authorization:"Bearer "+token,Accept:"application/json"}});
           const j=await r.json();
-          if(!r.ok) throw new Error(j?.message||j?.hint||"Calendar query failed");
+          if(!r.ok)throw new Error(j.message||j.hint||"Calendar query failed");
           const active=(Array.isArray(j)?j:[]).filter(c=>String(c.case_status||"Pending").trim().toLowerCase()!=="decided");
-          if(!cancelled) setCalendarCases(active);
-        }catch(e){
-          if(!cancelled){setCalendarCases([]);setCalendarError(e.message||"Could not load cause list");}
-        }finally{if(!cancelled)setCalendarLoading(false);}
+          if(!cancelled)setCalendarCases(active);
+        }catch(e){if(!cancelled){setCalendarCases([]);setCalendarError(e.message||"Could not load hearings");}}
+        finally{if(!cancelled)setCalendarLoading(false);}
       };
-      loadCalendarCases();
-      return()=>{cancelled=true};
+      loadCalendarCases();return()=>{cancelled=true};
     },[firstDate,nextDate]);
-
-    const firstDay=new Date(y,m,1).getDay();
-    const daysInMo=new Date(y,m+1,0).getDate();
     const normalizeDate=d=>d?String(d).slice(0,10):"";
     const byDate={};
-    calendarCases.forEach(c=>{
-      const d=normalizeDate(c.date_next_list);
-      if(d&&d.slice(0,7)===y+"-"+String(m+1).padStart(2,"0")){
-        if(!byDate[d])byDate[d]=[];
-        byDate[d].push(c);
-      }
-    });
-    Object.values(byDate).forEach(list=>list.sort((a,b)=>partyLabel(a).localeCompare(partyLabel(b))));
-    const cells=[];
-    for(let i=0;i<firstDay;i++)cells.push(null);
-    for(let d=1;d<=daysInMo;d++)cells.push(d);
-    return (
-      <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-            <div>
-              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,margin:"0 0 4px"}}>Hearing Calendar</h2>
-              <div style={{fontSize:11,color:"var(--silver)"}}>Your upcoming court dates, organised by month</div>
-            </div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn>
-              <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn>
-              <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/ambala","_blank","noopener,noreferrer")}>Ambala eCourts ↗</Btn>
-            </div>
-          </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",background:"var(--paper)",border:"1px solid var(--border)",borderRadius:12,padding:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m-1,1))}>‹</Btn>
-              <div style={{fontWeight:750,fontSize:15,minWidth:145,textAlign:"center"}}>{calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}</div>
-              <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m+1,1))}>›</Btn>
-              <Btn sm v="gold" onClick={()=>setCalMo(new Date())}>Today</Btn>
-            </div>
-            <div style={{display:"flex",gap:4,padding:3,borderRadius:9,background:"white",border:"1px solid var(--border)"}}>
-              <button onClick={()=>setCalendarMode("month")} style={{border:0,borderRadius:7,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",background:calendarMode==="month"?"var(--navy)":"transparent",color:calendarMode==="month"?"white":"var(--ink3)"}}>Month</button>
-              <button onClick={()=>setCalendarMode("agenda")} style={{border:0,borderRadius:7,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",background:calendarMode==="agenda"?"var(--navy)":"transparent",color:calendarMode==="agenda"?"white":"var(--ink3)"}}>Agenda</button>
-            </div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:8}}>
-            <div style={{background:"#eef8f5",border:"1px solid #d4eee5",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#387a68",fontWeight:700}}>HEARINGS THIS MONTH</div><div style={{fontSize:22,fontWeight:800,color:"#176b58"}}>{calendarCases.length}</div></div>
-            <div style={{background:"#fff7e8",border:"1px solid #f5e4bd",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#9a6a18",fontWeight:700}}>DATES WITH HEARINGS</div><div style={{fontSize:22,fontWeight:800,color:"#875a0c"}}>{Object.keys(byDate).length}</div></div>
-            <div style={{background:"#f2f5fb",border:"1px solid #dfe6f3",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#586d91",fontWeight:700}}>BUSIEST DAY</div><div style={{fontSize:15,fontWeight:800,color:"#344b73"}}>{Object.entries(byDate).sort((a,b)=>b[1].length-a[1].length)[0]?.[0] ? fmt(Object.entries(byDate).sort((a,b)=>b[1].length-a[1].length)[0][0]) : "—"}</div></div>
-          </div>
-        </div>
-        {calendarError&&<Card p={10} style={{border:"1px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:11}}>⚠️ Cause list could not be loaded: {calendarError}</Card>}
-        {calendarLoading&&<Card p={10} style={{fontSize:11,color:"var(--silver)"}}>⏳ Loading hearings for {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}…</Card>}
-        {!calendarLoading&&!calendarError&&calendarCases.length===0&&<Card p={12} style={{textAlign:"center",color:"var(--silver)",fontSize:11}}>No pending/active cases are scheduled in {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}.</Card>}
-        {calendarMode==="month"&&<Card p={0} style={{overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--border)"}}>
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",padding:"6px 2px",fontSize:9.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
-            {cells.map((day,i)=>{
-              if(!day)return<div key={`e${i}`} style={{minHeight:68,borderBottom:"1px solid var(--border)",borderRight:"1px solid var(--border)",background:"#f9fafb"}}/>;
-              const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-              const isToday=ds===TODAY;
-              const hearings=byDate[ds]||[];
-              return <div key={day} style={{minHeight:68,borderBottom:"1px solid var(--border)",borderRight:"1px solid var(--border)",padding:5,background:isToday?"#fffbef":hearings.length?"#f9fff9":""}}>
-                <div style={{width:20,height:20,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:3,fontSize:11,fontWeight:isToday?700:400,background:isToday?"var(--gold)":"transparent",color:isToday?"white":"var(--ink3)"}}>{day}</div>
-                {hearings.slice(0,2).map(h=>{const t=tm(h.type_name);return<div key={h.cino} onClick={()=>openCase(h)} style={{fontSize:9,padding:"1px 3px",borderRadius:3,marginBottom:2,background:t.color+"1a",color:t.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,cursor:"pointer"}}>{h.resparty_name==="XXXXXXX"?(h.note||h.type_name):h.resparty_name}</div>;})}
-                {hearings.length>2&&<div style={{fontSize:8.5,color:"var(--silver)"}}>+{hearings.length-2}</div>}
-              </div>;
-            })}
-          </div>
-        </Card>}
-        <div style={{flex:1,overflowY:"auto",display:calendarMode==="agenda"?"block":"none"}}>
-          {Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,hearings])=>(
-            <div key={date} style={{marginBottom:12}}>
-              <div style={{fontSize:10.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}>
-                {fmt(date)}{date===TODAY&&<span style={{color:"var(--rose)",marginLeft:6}}>— TODAY</span>}<span style={{fontWeight:400,marginLeft:6}}>({hearings.length})</span>
-              </div>
-              <Card p={0} style={{overflow:"hidden"}}>
-                {hearings.map((c,i)=>{const t=tm(c.type_name);return(
-                  <div key={c.cino} style={{padding:"9px 14px",borderBottom:i<hearings.length-1?"1px solid var(--border)":"none",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}
-                    onClick={()=>openCase(c)} onMouseEnter={e=>e.currentTarget.style.background="var(--paper)"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:1}}>{c.court_no_desg_name} · {c.establishment_name}</div></div>
-                    <Bdg label={t.label} color={t.color}/><Bdg label={c.purpose_name} color={pcColor(c.purpose_name)}/>
-                  </div>
-                );})}
-              </Card>
-            </div>
-          ))}
-        </div>
-        {detail&&<DetailPanel c={detail} onClose={()=>setDetail(null)}/>}
+    calendarCases.forEach(c=>{const d=normalizeDate(c.date_next_list);if(d){if(!byDate[d])byDate[d]=[];byDate[d].push(c);}});
+    Object.values(byDate).forEach(list=>list.sort((a,b)=>(a.court_no_desg_name||"").localeCompare(b.court_no_desg_name||"")||partyLabel(a).localeCompare(partyLabel(b))));
+    const monthLabel=anchor.toLocaleString("en-IN",{month:"long",year:"numeric"});
+    const weekStart=new Date(anchor);weekStart.setDate(anchor.getDate()-anchor.getDay());
+    const weekDays=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;});
+    const selectedHearings=byDate[selectedDate]||[];
+    const visibleDates=calendarMode==="week"?weekDays:calendarMode==="day"?[anchor]:[];
+    const viewLabel=calendarMode==="month"?monthLabel:calendarMode==="week"?(fmt(dateKey(weekDays[0]))+" – "+fmt(dateKey(weekDays[6]))):calendarMode==="day"?fmt(selectedDate):"Upcoming hearings";
+    const dayButton=(d,compact=false)=>{
+      const key=dateKey(d),hearings=byDate[key]||[],today=key===TODAY,selected=key===selectedDate;
+      return <button key={key} onClick={()=>{setSelectedDate(key);setCalMo(new Date(d.getFullYear(),d.getMonth(),1));if(compact)setCalendarMode("day");}} style={{textAlign:"left",minWidth:0,border:"1px solid "+(selected?"#b69a50":"var(--border)"),borderRadius:8,background:selected?"#fff8e6":today?"#f2f7ff":"white",padding:compact?"8px 6px":"8px",cursor:"pointer",color:"var(--ink)",display:"flex",flexDirection:"column",gap:5}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:3}}><span style={{fontSize:compact?10:12,fontWeight:today||selected?800:600}}>{compact?d.toLocaleDateString("en-IN",{weekday:"short"}):d.getDate()}</span>{today&&<span style={{fontSize:8,color:"#1a6aa8",fontWeight:800}}>TODAY</span>}</div>
+        {compact&&<div style={{fontSize:13,fontWeight:800}}>{d.getDate()}</div>}
+        {hearings.slice(0,compact?3:4).map(c=>{const t=tm(c.type_name);return <div key={c.cino} onClick={e=>{e.stopPropagation();openCase(c);}} style={{fontSize:compact?9:10,lineHeight:1.3,padding:"4px 5px",borderRadius:4,borderLeft:"3px solid "+t.color,background:t.color+"14",color:"var(--ink3)",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflowWrap:"anywhere"}}>{partyLabel(c)}<div style={{fontSize:8.5,color:"var(--silver)",marginTop:2}}>{c.purpose_name||c.court_no_desg_name||"Hearing"}</div></div>;})}
+        {hearings.length>(compact?3:4)&&<span style={{fontSize:9,color:"var(--silver)"}}>+{hearings.length-(compact?3:4)} more</span>}
+        {hearings.length===0&&<span style={{fontSize:9,color:"var(--silver)"}}>—</span>}
+      </button>;
+    };
+    const renderAgenda=(dates)=>{
+      const entries=dates.flatMap(d=>(byDate[dateKey(d)]||[]).map(c=>({date:d,caseItem:c})));
+      return <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {entries.length===0&&<Card p={18} style={{textAlign:"center",color:"var(--silver)",fontSize:12}}>No hearings in this period.</Card>}
+        {entries.map(({date:d,caseItem:c},i)=>{const t=tm(c.type_name);return <button key={(c.cino||partyLabel(c))+dateKey(d)+i} onClick={()=>openCase(c)} style={{display:"grid",gridTemplateColumns:"72px minmax(0,1fr)",gap:12,textAlign:"left",padding:12,border:"1px solid var(--border)",borderRadius:9,background:"white",cursor:"pointer",borderLeft:"4px solid "+t.color}}>
+          <div><div style={{fontSize:10,color:"var(--silver)",fontWeight:700}}>{d.toLocaleDateString("en-IN",{weekday:"short"})}</div><div style={{fontSize:17,fontWeight:800}}>{d.getDate()}</div><div style={{fontSize:9,color:"var(--silver)"}}>{d.toLocaleDateString("en-IN",{month:"short",year:"numeric"})}</div></div>
+          <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:800,overflowWrap:"anywhere"}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:3}}>{c.court_no_desg_name||c.establishment_name||"Court not recorded"}{c.district_name?" · "+c.district_name:""}</div><div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}><Bdg label={t.label} color={t.color}/>{c.purpose_name&&<Bdg label={c.purpose_name} color={pcColor(c.purpose_name)}/>}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:5}}>CNR: {c.cino||"Not recorded"}</div></div>
+        </button>;})}
+      </div>;
+    };
+    const allMonthDates=Array.from({length:42},(_,i)=>{const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);return d;});
+    return <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12,minHeight:0,height:"100%",overflowY:"auto",paddingBottom:18}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,fontWeight:750,margin:"0 0 4px"}}>Hearing Calendar</h2><div style={{fontSize:11,color:"var(--silver)"}}>Your court diary · {calendarCases.length} hearings in the displayed calendar range</div></div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn><Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn></div>
       </div>
-    );
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 12px",background:"white",border:"1px solid var(--border)",borderRadius:11,boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:7}}><Btn sm v="ghost" onClick={()=>shiftDate(-1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>‹</Btn><Btn sm v="ghost" onClick={()=>shiftDate(1,calendarMode==="month"?"month":calendarMode==="week"?"week":"day")}>›</Btn><div style={{fontSize:15,fontWeight:800,minWidth:150}}>{viewLabel}</div><Btn sm v="gold" onClick={()=>{setSelectedDate(TODAY);setCalMo(new Date());}}>Today</Btn></div>
+        <div style={{display:"flex",gap:3,padding:3,borderRadius:9,background:"var(--paper)",border:"1px solid var(--border)"}}>{[["month","Month"],["week","Week"],["day","Day"],["agenda","Agenda"]].map(([key,label])=><button key={key} onClick={()=>setCalendarMode(key)} style={{border:0,borderRadius:7,padding:"7px 10px",fontSize:10.5,fontWeight:800,cursor:"pointer",background:calendarMode===key?"var(--navy)":"transparent",color:calendarMode===key?"white":"var(--ink3)"}}>{label}</button>)}</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
+        {[["HEARINGS SHOWN",calendarCases.length,"#176b58","#eef8f5"],["DATES WITH HEARINGS",Object.keys(byDate).length,"#875a0c","#fff7e8"],["SELECTED DAY",selectedHearings.length,"#344b73","#f2f5fb"]].map(([label,value,color,bg])=><div key={label} style={{background:bg,border:"1px solid "+color+"22",borderRadius:9,padding:"9px 12px"}}><div style={{fontSize:9.5,color,fontWeight:800}}>{label}</div><div style={{fontSize:21,fontWeight:850,color,marginTop:3}}>{value}</div></div>)}
+      </div>
+      {calendarError&&<Card p={12} style={{border:"1px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:11}}>Calendar could not load: {calendarError}</Card>}
+      {calendarLoading&&<Card p={12} style={{fontSize:11,color:"var(--silver)"}}>Loading hearings…</Card>}
+      {!calendarError&&calendarMode==="month"&&<div style={{background:"white",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",background:"var(--paper)",borderBottom:"1px solid var(--border)"}}>{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{padding:"9px 2px",textAlign:"center",fontSize:9.5,fontWeight:800,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))"}}>{allMonthDates.map((d,i)=>{const inMonth=d.getMonth()===m;return <div key={dateKey(d)} style={{minWidth:0,minHeight:112,borderRight:i%7===6?"none":"1px solid var(--border)",borderBottom:i>=35?"none":"1px solid var(--border)",padding:3,background:dateKey(d)===TODAY?"#f1f7ff":inMonth?"white":"#f8fafc",opacity:inMonth?1:.62}}>{dayButton(d,false)}</div>;})}</div>
+      </div>}
+      {!calendarError&&calendarMode==="week"&&<div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(115px,1fr))",gap:6,overflowX:"auto",paddingBottom:4}}>{weekDays.map(d=>dayButton(d,true))}</div>}
+      {!calendarError&&calendarMode==="day"&&<div style={{display:"flex",flexDirection:"column",gap:10}}><Card p={12}><div style={{fontSize:16,fontWeight:800}}>{anchor.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div><div style={{fontSize:11,color:"var(--silver)",marginTop:3}}>{selectedHearings.length} hearing(s) scheduled</div></Card>{renderAgenda([anchor])}</div>}
+      {!calendarError&&calendarMode==="agenda"&&renderAgenda(allMonthDates.filter(d=>dateKey(d)>=TODAY))}
+      <div style={{fontSize:10,color:"var(--silver)"}}>Select a date to view its hearings. Select a hearing to open its Mercury case record. Dates and case details come from your existing case register.</div>
+      {detail&&<DetailPanel c={detail} onClose={()=>setDetail(null)}/>}
+    </div>;
   };
 
   // ── TASKS ────────────────────────────────────────────────────────────────
