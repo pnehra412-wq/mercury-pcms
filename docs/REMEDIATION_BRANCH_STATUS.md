@@ -122,3 +122,15 @@ Do not treat the static checks as a successful build or security certification.
 7. Present the exact production deployment steps for explicit approval.
 
 No production action should be taken from this branch until these gates pass.
+
+
+## Autonomous free-first follow-up — 2026-10-20
+
+- User instruction reaffirmed: continue autonomously, avoid fees, and do not repeatedly ask for permission for safe branch-only work.
+- Updated the scheduled task to require concrete progress each run, prohibit billable services, prohibit production changes without explicit approval, and continue branch-only work while blocked. Requested an immediate run; the automation system confirmed that the run was queued, not completed.
+- Updated this status report and the owner/RLS specification to state clearly that the sign-in screen alone does not secure the live database: current broad policies on `cases`, `tasks`, `hearing_history`, and `documents` still use permissive `true` predicates for the `public` role.
+- Re-queried live schema metadata read-only. Confirmed the current broad policy definitions and exact view SELECT definitions. `office_court_watch` joins `court_watch` to `cases`; `office_document_inbox` joins `documents` to `cases` and includes Storage path metadata. Both remain release blockers until owner isolation and view access are corrected and tested.
+- No paid branch/project was created; no production data, policies, grants, views, Storage, or deployed functions were modified.
+- No free isolated PostgreSQL/Supabase test database is available through the current connected tools. A local attempt to clone the repository from the execution container failed because external DNS/network access is unavailable; no paid CI or testing service was enabled.
+- Continued code review of `mercury-office`: the branch draft authenticates the API request and filters the service-role case query by `owner_id`; this depends on the un-applied owner schema and is not deployable yet. Its public HTML endpoint is intentionally served separately from the authenticated `?api=cases` route.
+- Confirmed the migration spec remains explicitly non-executable. The immediate safe next work is branch-only source review, documenting exact schema assumptions, and adding free/static validation that can run in the available environment. Runtime validation, cross-user tests, and deployment remain blocked until a no-cost isolated test path and owner account exist.
