@@ -610,7 +610,7 @@ function MercuryPCMS() {
         "Next date: "+(h.next_date||"Not recorded"),
         "Notes: "+(h.notes||"None")
       ].join("\n")).join("\n\n");
-      const documentList = caseDocs.map((d,i)=>((i+1)+". "+(d.name||"Unnamed document"))).join("\n");
+      const documentList = caseDocs.map((d,i)=>((i+1)+". "+(d.name||"Unnamed document")+" | Type: "+(d.doc_type||d.document_category||"Unclassified")+" | Order date: "+(d.order_date||"Not recorded")+" | Analysis: "+(d.ai_summary||"No AI summary available")+" | Advocate action: "+(d.latest_order_action||"Not recorded"))).join("\n");
       const brief = [
         "LEGAL DRAFTING BRIEF — MERCURY PCMS",
         "Prepare work only from the facts and source documents supplied. Do not invent facts, dates, pleadings, citations, statutory provisions, or case law. Separate established record facts from client assertions and assumptions. Flag missing or inconsistent material and verify authorities before relying on them.",
