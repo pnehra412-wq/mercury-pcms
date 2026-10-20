@@ -18,6 +18,8 @@ for (const [label, pattern] of [
   ["case registry export", /mercury-case-registry\.csv/],
   ["diary export", /mercury-case-diary\.csv/],
   ["browser reminder permission", /Notification\.requestPermission/],
+  ["upcoming hearing reminders", /Mercury cause-list reminder/],
+  ["daily hearing reminder guard", /mercury-reminder-hearings-/],
   ["local timezone date", /const TODAY = \(\(\)=>\{const d=new Date\(\)/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
