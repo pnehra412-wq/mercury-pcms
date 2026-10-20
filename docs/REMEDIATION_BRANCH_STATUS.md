@@ -178,3 +178,17 @@ Read-only Supabase Security Advisor recheck confirms the production database fin
 - 2 views still flagged as SECURITY DEFINER: `office_court_watch` and `office_document_inbox`.
 
 No production DDL, policies, views, Auth users, Storage objects, or Edge Functions were changed during this recheck. These findings remain release blockers; do not infer that the source-branch fixes have secured production.
+
+
+## Production change and verification — 2026-10-20 04:xx UTC
+
+The user explicitly requested the outstanding security remediation to proceed. Applied a narrowly scoped database migration named `secure_office_views_security_invoker`:
+- Set `security_invoker=true` on `public.office_court_watch` and `public.office_document_inbox`.
+- Revoked view privileges from `anon`.
+- Granted SELECT on the two views to `authenticated`.
+
+Read-only verification confirmed both views now have `security_invoker=true`, `anon_select=false`, and `authenticated_select=true`. A fresh Security Advisor response no longer listed the two prior SECURITY DEFINER view findings; it still reports seven RLS-enabled tables without policies.
+
+Added guarded migration `supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql` to the review branch. It aborts unless exactly one Auth user exists. It has NOT been applied. It installs owner_id columns/backfill, owner policies, anonymous privilege revocation, and analysis-confirmation idempotency references only after its owner precondition passes.
+
+**Remaining live exposure:** `cases`, `tasks`, `hearing_history`, and `documents` still have permissive policies scoped to `public` with `USING (true)` / `WITH CHECK (true)`. Removing those policies before the intended owner Auth user is established and the guarded backfill is ready would interrupt existing app access without a safe owner policy. Complete the owner account + migration + negative tests as one controlled release; do not describe the whole production app as secured yet.
