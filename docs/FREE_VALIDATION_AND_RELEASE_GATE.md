@@ -1,0 +1,38 @@
+# Mercury PCMS — Free Validation and Release Gate
+
+Date: 2026-10-20
+Branch: `security-hardening-2026-10-19`
+
+This checklist is intentionally a release gate, not a claim that the app is complete.
+
+## Verified source-level risks to close
+
+1. `prepare-document-share/index.ts` still has `Access-Control-Allow-Origin: *`. Its handler does authenticate a Supabase access token through `authenticateMercuryRequest` and filters documents by `owner_id`, but those checks depend on the un-applied owner migration. CORS is not authentication; nevertheless, wildcard browser access is unnecessary for a private document workflow. Before changing the origin list, confirm all actual browser origins; preserve native clients that omit Origin.
+2. The branch copies of `get-document-url` and `prepare-document-share` query `owner_id`, which does not exist in the live schema. Do not deploy those functions before the matching schema migration and negative tests.
+3. The shared helper calls Auth `getUser(token)` before creating a service-role client. Each function still needs a resource-specific owner check. Review every service-role query/update, not only the presence of the helper import.
+4. Current live policies/views remain unsafe per the live audit. Branch code does not remediate live database access.
+
+## Free checks to run when a local checkout is available
+
+- `node --check scripts/mercury-security-static-check.mjs`
+- Run `node scripts/mercury-security-static-check.mjs` from repository root and save the actual output.
+- Use a locally installed Deno runtime: `deno check supabase/functions/_shared/mercury-auth.ts` and each modified function. Do not install paid services or upload private data.
+- Compile/test the frontend with the repository's existing toolchain only; do not introduce a paid CI dependency.
+- Review diff for all modified paths and compare function contracts with their callers.
+- Run negative tests: missing bearer, invalid/expired bearer, unknown ID, cross-owner ID, unexpected bucket, malformed legacy base64, oversized payload, Storage upload failure, checksum mismatch, and metadata update failure. For every failure case, confirm legacy data remains intact.
+- Verify logout clears in-memory case/document data and prevents pre-login requests to private APIs.
+- Test Windows and Android flows, including native requests without an Origin header.
+
+## Database/release blockers
+
+- No owner Auth user has been verified yet.
+- No free isolated database is available through the current connected tools; do not create a billable Supabase branch/project.
+- Verify a restorable database backup and separate recoverable Storage bytes.
+- Retrieve source and caller contract for deployed `capture-shared-court-order`; the Supabase source connector returned an empty body.
+- Build an explicit owner-scoped migration that preserves unlinked documents/analysis and respects bigint IDs and existing `cino` relationships. Never use guessed foreign-key types.
+- Test view security, grants, RLS and cross-user access in an isolated database.
+- Production release requires explicit approval. No production migration/function deployment is authorized by this checklist.
+
+## Completion criteria
+
+Do not call Mercury PCMS complete until all of these are true: frontend and function type checks pass; owner schema migration is tested; negative cross-user tests pass; document recovery/idempotency tests pass; the missing function is reviewed; all relevant Security Advisor findings are either fixed or documented with a justified exception; and Windows/Android core workflows pass regression tests.
