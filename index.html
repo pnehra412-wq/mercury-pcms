@@ -40,6 +40,32 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
 .mercury-topbar{min-height:52px}
 .mercury-main-pad{padding:14px 18px}
 .mercury-case-sheet{width:440px}
+  .mercury-dashboard{--md-ink:#172438;--md-muted:#687588}
+  .mercury-welcome{position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:stretch;justify-content:space-between;gap:20px;min-height:205px;padding:25px 28px;border-radius:16px;color:#fff;background:linear-gradient(115deg,#15243a 0%,#203d58 62%,#285d68 100%);box-shadow:0 12px 30px rgba(23,36,56,.13)}
+  .mercury-welcome:after{content:"";position:absolute;z-index:-1;width:330px;height:330px;right:17%;top:-205px;border:1px solid rgba(255,255,255,.10);border-radius:50%;box-shadow:0 0 0 28px rgba(255,255,255,.025),0 0 0 58px rgba(255,255,255,.02)}
+  .mercury-welcome-copy{max-width:620px;min-width:0}
+  .mercury-eyebrow{display:flex;align-items:center;gap:8px;font-size:9px;font-weight:800;letter-spacing:1.8px;color:#d6c39a}
+  .mercury-live-dot{width:7px;height:7px;border-radius:50%;background:#80d5b4;box-shadow:0 0 0 4px rgba(128,213,180,.13)}
+  .mercury-eyebrow-divider{color:rgba(255,255,255,.32)}
+  .mercury-welcome h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(26px,3vw,36px);line-height:1.16;letter-spacing:-.5px;margin:18px 0 8px;color:#fff}
+  .mercury-welcome p{font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.76);margin:0;max-width:460px}
+  .mercury-welcome-date{display:flex;align-items:center;gap:8px;font-size:11px;color:#f0dfbb;margin-top:18px}
+  .mercury-welcome-mark{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:180px;max-width:230px;padding:8px 14px;color:rgba(255,255,255,.7);text-align:center}
+  .mercury-mark-ring{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;border:1px solid rgba(222,201,154,.58);color:#e4d1a4;background:rgba(255,255,255,.035);box-shadow:0 0 0 8px rgba(255,255,255,.025),inset 0 0 0 5px rgba(255,255,255,.025)}
+  .mercury-welcome-mark>span{font-size:8px;letter-spacing:2px;font-weight:800;margin-top:15px;color:#dfcda5}
+  .mercury-welcome-mark>strong{font-family:'Playfair Display',Georgia,serif;font-weight:500;font-size:12px;margin-top:5px;color:rgba(255,255,255,.8)}
+  .mercury-quick-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .mercury-quick-actions>button{min-width:0;display:flex;align-items:center;gap:10px;padding:13px 12px;border:1px solid var(--border);border-radius:11px;background:var(--white);color:var(--ink3);text-align:left;cursor:pointer;box-shadow:0 2px 7px rgba(20,30,45,.025);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+  .mercury-quick-actions>button:hover{transform:translateY(-2px);border-color:#c6b58f;box-shadow:0 7px 18px rgba(20,30,45,.08)}
+  .mercury-quick-actions>button>span:nth-child(2){display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+  .mercury-quick-actions>button strong{font-size:11px;font-weight:750;color:var(--ink)}
+  .mercury-quick-actions>button small{font-size:9.5px;line-height:1.4;color:var(--silver)}
+  .mercury-action-icon{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border-radius:9px;background:#f2efe7;color:#8b7443}
+  .mercury-action-primary{border-color:#d8c79f!important;background:linear-gradient(135deg,#fffdf8,#f7f2e6)!important}
+  .mercury-dashboard .mercury-stat-grid>div{min-width:0}
+  @media(max-width:950px){.mercury-welcome{padding:22px}.mercury-welcome-mark{min-width:135px}.mercury-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){.mercury-welcome{min-height:0;padding:20px 18px;border-radius:13px}.mercury-welcome-mark{display:none}.mercury-welcome h1{font-size:27px;margin-top:16px}.mercury-welcome p{font-size:11.5px}.mercury-welcome-date{margin-top:14px}.mercury-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mercury-quick-actions>button{padding:10px 9px;gap:8px}.mercury-quick-actions>button small{font-size:9px}.mercury-action-icon{width:30px;height:30px}.mercury-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+
 @media print {
   body,#root{height:auto!important;overflow:visible!important;background:#fff!important}
   .mercury-sidebar,.mercury-topbar,.mercury-mobile-nav,button,input,select,textarea{display:none!important}
@@ -343,7 +369,22 @@ function MercuryPCMS() {
     const pendingFee = fees.reduce((s,f)=>s+(parseFloat(f.amount_agreed)||0)-(parseFloat(f.amount_paid)||0),0);
     const byDist = allDists.map(d=>({d,n:cases.filter(c=>c.district_name===d).length}));
     return (
-      <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div className="fade-up mercury-dashboard" style={{display:"flex",flexDirection:"column",gap:14}}>
+        <section className="mercury-welcome">
+          <div className="mercury-welcome-copy">
+            <div className="mercury-eyebrow"><span className="mercury-live-dot"/> MERCURY PCMS <span className="mercury-eyebrow-divider">/</span> CHAMBER OVERVIEW</div>
+            <h1>Good day, Advocate.</h1>
+            <p>Your practice at a glance. Keep hearings, files and follow-ups moving.</p>
+            <div className="mercury-welcome-date"><Ic n="cal" size={14}/>{new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+          </div>
+          <div className="mercury-welcome-mark" aria-hidden="true"><div className="mercury-mark-ring"><Ic n="scale" size={38}/></div><span>CASE MANAGEMENT</span><strong>Organised. Prepared. On record.</strong></div>
+        </section>
+        <section className="mercury-quick-actions" aria-label="Quick actions">
+          <button className="mercury-action-primary" onClick={()=>{setView("cases");setAddCase(true);}}><span className="mercury-action-icon"><Ic n="plus" size={17}/></span><span><strong>Add a case</strong><small>Register a new matter</small></span><Ic n="chevron-right" size={16}/></button>
+          <button onClick={()=>setView("calendar")}><span className="mercury-action-icon"><Ic n="cal" size={17}/></span><span><strong>Cause list</strong><small>Upcoming hearings</small></span><Ic n="chevron-right" size={16}/></button>
+          <button onClick={()=>setView("diary")}><span className="mercury-action-icon"><Ic n="history" size={17}/></span><span><strong>Case diary</strong><small>Proceedings & next dates</small></span><Ic n="chevron-right" size={16}/></button>
+          <button onClick={()=>setAddTask("__free__")}><span className="mercury-action-icon"><Ic n="task" size={17}/></span><span><strong>New task</strong><small>Record a follow-up</small></span><Ic n="chevron-right" size={16}/></button>
+        </section>
         {/* Status */}
         <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--white)",borderRadius:8,padding:"8px 14px",border:"1px solid var(--border)"}}>
           <div style={{width:8,height:8,borderRadius:"50%",background:loading?"#f59e0b":cases.length>0?"#22c55e":"#ef4444",flexShrink:0}}/>
@@ -354,7 +395,7 @@ function MercuryPCMS() {
         </div>
 
         {/* Stat cards */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+        <div className="mercury-stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10}}>
           {[
             {label:"Total Cases",    val:cases.length,         icon:"list",  color:"var(--gold)",  action:()=>setView("cases")},
             {label:"Next 7 Days",    val:next7.length,         icon:"bell",  color:"var(--amber)", action:()=>setView("calendar")},
