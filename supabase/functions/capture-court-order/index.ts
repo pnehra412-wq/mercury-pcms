@@ -2,6 +2,31 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { authenticateMercuryRequest } from "../_shared/mercury-auth.ts";
 
+const ALLOWED_ORIGINS = new Set([
+  "https://hmtcnatqowokeyrdjujq.supabase.co",
+  "https://mercuryandroid.vercel.app",
+]);
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const responseHeaders: Record<string, string> = {
+    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+  };
+  if (origin && ALLOWED_ORIGINS.has(origin)) responseHeaders["Access-Control-Allow-Origin"] = origin;
+  return responseHeaders;
+}
+
+function respond(req: Request, body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { ...corsHeaders(req), ...(init.headers || {}) },
+  });
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -9,10 +34,11 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
 });
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return Response.json({ error: "Method Not Allowed" }, { status: 405 });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return respond(req, { error: "Method Not Allowed" }, { status: 405 });
 
   const auth = await authenticateMercuryRequest(req);
-  if (!auth.ok) return Response.json({ error: auth.message }, { status: auth.status });
+  if (!auth.ok) return respond(req, { error: auth.message }, { status: auth.status });
 
   try {
     const form = await req.formData();
@@ -22,13 +48,13 @@ Deno.serve(async (req: Request) => {
     const source = String(form.get("source") ?? "eCourts").trim().slice(0, 80);
     const orderDateRaw = String(form.get("order_date") ?? "").trim();
     if (!(file instanceof File) || !cino || cino.length > 128) {
-      return Response.json({ error: "file and a valid cino are required" }, { status: 400 });
+      return respond(req, { error: "file and a valid cino are required" }, { status: 400 });
     }
     if (file.size < 5 || file.size > 25 * 1024 * 1024) {
-      return Response.json({ error: "PDF must be between 5 bytes and 25 MB" }, { status: 413 });
+      return respond(req, { error: "PDF must be between 5 bytes and 25 MB" }, { status: 413 });
     }
     if (file.type && file.type !== "application/pdf") {
-      return Response.json({ error: "Only PDF files are accepted" }, { status: 415 });
+      return respond(req, { error: "Only PDF files are accepted" }, { status: 415 });
     }
 
     const { data: caseRow, error: caseError } = await admin
@@ -39,13 +65,13 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (caseError) {
       console.error("capture-court-order: case lookup failed");
-      return Response.json({ error: "Could not verify case access" }, { status: 500 });
+      return respond(req, { error: "Could not verify case access" }, { status: 500 });
     }
-    if (!caseRow) return Response.json({ error: "Case not found" }, { status: 404 });
+    if (!caseRow) return respond(req, { error: "Case not found" }, { status: 404 });
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const header = new TextDecoder().decode(bytes.slice(0, 1024));
-    if (!header.includes("%PDF-")) return Response.json({ error: "The uploaded file is not a valid PDF" }, { status: 415 });
+    if (!header.includes("%PDF-")) return respond(req, { error: "The uploaded file is not a valid PDF" }, { status: 415 });
 
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     const fingerprint = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -58,9 +84,9 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (existingError) {
       console.error("capture-court-order: duplicate lookup failed");
-      return Response.json({ error: "Could not verify document status" }, { status: 500 });
+      return respond(req, { error: "Could not verify document status" }, { status: 500 });
     }
-    if (existing) return Response.json({ ok: true, duplicate: true, document: existing });
+    if (existing) return respond(req, { ok: true, duplicate: true, document: existing });
 
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 180) || "court-order.pdf";
     const path = cino.replace(/[^a-zA-Z0-9._-]/g, "_") + "/Orders/" + Date.now() + "_" + safeName;
@@ -70,7 +96,7 @@ Deno.serve(async (req: Request) => {
     });
     if (uploadError) {
       console.error("capture-court-order: storage upload failed");
-      return Response.json({ error: "Could not store the PDF" }, { status: 500 });
+      return respond(req, { error: "Could not store the PDF" }, { status: 500 });
     }
 
     const { data: doc, error: docError } = await admin
@@ -98,11 +124,11 @@ Deno.serve(async (req: Request) => {
       const { error: cleanupError } = await admin.storage.from("case-files").remove([path]);
       if (cleanupError) console.error("capture-court-order: orphan object cleanup failed");
       console.error("capture-court-order: document insert failed");
-      return Response.json({ error: "Could not save the document record" }, { status: 500 });
+      return respond(req, { error: "Could not save the document record" }, { status: 500 });
     }
 
-    return Response.json({ ok: true, duplicate: false, document: doc });
+    return respond(req, { ok: true, duplicate: false, document: doc });
   } catch {
-    return Response.json({ error: "Invalid upload request" }, { status: 400 });
+    return respond(req, { error: "Invalid upload request" }, { status: 400 });
   }
 });
