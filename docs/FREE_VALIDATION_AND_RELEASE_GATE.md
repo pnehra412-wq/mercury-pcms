@@ -44,3 +44,10 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 - Passed: Node syntax check for the guardrail script, all dependency-free static checks, and Deno type-checks for the shared auth helper plus the listed document, capture, chat, office, and publishing Edge Functions.
 - The type-check run found and prompted fixes for a Web Crypto typed-array incompatibility and a catch-variable typing issue.
 - This is source/type validation only. It does not test live Auth, owner/RLS behavior, Storage operations, browser CORS end-to-end, Android sharing, or data migration safety. Any new source commit should be validated by a fresh CI run before release.
+
+
+## Latest code-validation run — 2026-10-20
+
+- [GitHub Actions run 39366551236](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39366551236) passed on commit `f737204965078105fe87d69d5ba2946e03db5919`.
+- This run includes the CORS allowlist/fallback checks for `get-document-url`, plus the Deno type checks for the listed Edge Functions.
+- The previous type-check failures were fixed and the full configured job passed. This still does not prove runtime correctness, owner/RLS enforcement, browser/device compatibility, or migration safety.
