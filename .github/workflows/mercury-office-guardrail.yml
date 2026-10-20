@@ -1,0 +1,29 @@
+name: Mercury office endpoint regression checks
+
+on:
+  push:
+    branches:
+      - security-hardening-2026-10-19
+  pull_request:
+    branches:
+      - phase-0-safe-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  office-endpoint-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check targeted regression test
+        run: node --check scripts/check-office-endpoint.mjs
+      - name: Run office endpoint regression checks
+        run: node scripts/check-office-endpoint.mjs
