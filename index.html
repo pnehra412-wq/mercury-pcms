@@ -368,7 +368,7 @@ function MercuryPCMS() {
 
   const filtered = useMemo(() => {
     let out = [...cases];
-    if(searchQ){const q=searchQ.toLowerCase();out=out.filter(c=>c.cino.toLowerCase().includes(q)||c.petparty_name.toLowerCase().includes(q)||c.resparty_name.toLowerCase().includes(q)||(c.note||"").toLowerCase().includes(q)||c.purpose_name.toLowerCase().includes(q));}
+    if(searchQ){const q=searchQ.trim().toLowerCase();if(q)out=out.filter(c=>[c.cino,c.petparty_name,c.resparty_name,c.note,c.notes_adv,c.purpose_name,c.type_name,c.court_no_desg_name,c.district_name,c.establishment_name].some(v=>String(v||"").toLowerCase().includes(q)));}
     if(fDist!=="All") out=out.filter(c=>c.district_name===fDist);
     if(fType!=="All") out=out.filter(c=>c.type_name===fType);
     if(sortBy==="date") out.sort((a,b)=>new Date(a.date_next_list)-new Date(b.date_next_list));
@@ -1726,7 +1726,7 @@ function MercuryPCMS() {
       {/* Mobile navigation */}
       <nav className="mercury-mobile-nav" aria-label="Mercury mobile navigation">
         {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Calendar"},{id:"diary",icon:"history",label:"Diary"},{id:"cases",icon:"search",label:"Search"}].map((n,i)=>(
-          <button key={i} className={view===n.id && (i===0 || i===1 || i===2) ? "active":""} onClick={()=>{setView(n.id);setDetail(null);if(i===3){setView("cases");setTimeout(()=>document.querySelector(".mercury-search input")?.focus(),60);}}}>
+          <button key={i} className={view===n.id ? "active":""} aria-current={view===n.id ? "page":undefined} onClick={()=>{const targetView=n.id==="cases"?"cases":n.id;setView(targetView);setDetail(null);if(n.id==="cases"){const input=document.querySelector(".mercury-topbar .mercury-search input");if(input){input.focus();input.scrollIntoView({block:"nearest"});}}}}>
             <Ic n={n.icon} size={18}/><span>{n.label}</span>
           </button>
         ))}
