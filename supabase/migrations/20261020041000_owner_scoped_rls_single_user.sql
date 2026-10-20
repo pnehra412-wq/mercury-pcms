@@ -70,7 +70,7 @@ begin
     where x.cino is not null and not exists (select 1 from public.cases c where c.cino=x.cino)
   ) then raise exception 'Owner migration aborted: fees contains unmatched CINO'; end if;
 end
-$;
+$$;
 
 -- owner_id is independent of CINO so unlinked documents and analyses are retained.
 do $$
