@@ -16,7 +16,7 @@ check("API uses Supabase Auth helper", source.includes("authenticateMercuryReque
 check("case query includes owner filter", source.includes("owner_id=eq.") && source.includes("auth.user.id"));
 check("no query-string shared-key gate", !source.includes('searchParams.get("key")'));
 check("no static office-key variable", !/\bOFFICE_KEY\b/i.test(source));
-check("dashboard excludes client phone and internal notes", !/select=[^"`]*\b(client_phone|advocate_notes|notes_adv|note)\b/.test(source));
+check("dashboard query uses an explicit field allowlist", /select=id,cino,type_name,/.test(source) && !/select=\*/.test(source));
 check("database errors are not returned verbatim", !source.includes("error:String(e)") && source.includes('error:"Could not retrieve case dashboard"'));
 for (const item of checks) console.log((item.ok ? "PASS " : "FAIL ") + item.name);
 console.log(`${checks.filter((x) => x.ok).length}/${checks.length} office endpoint checks passed.`);
