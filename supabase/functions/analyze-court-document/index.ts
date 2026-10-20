@@ -2,6 +2,31 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { authenticateMercuryRequest } from "../_shared/mercury-auth.ts";
 
+const ALLOWED_ORIGINS = new Set([
+  "https://hmtcnatqowokeyrdjujq.supabase.co",
+  "https://mercuryandroid.vercel.app",
+]);
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const responseHeaders: Record<string, string> = {
+    "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+  };
+  if (origin && ALLOWED_ORIGINS.has(origin)) responseHeaders["Access-Control-Allow-Origin"] = origin;
+  return responseHeaders;
+}
+
+function respond(req: Request, body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { ...corsHeaders(req), ...(init.headers || {}) },
+  });
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY")!;
@@ -112,26 +137,27 @@ function validDate(v:any) {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") return Response.json({error:"Method Not Allowed"}, {status:405});
+Deno.serve(async (req) => {  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+
+  if (req.method !== "POST") return respond(req, {error:"Method Not Allowed"}, {status:405});
   const auth = await authenticateMercuryRequest(req);
-  if (!auth.ok) return Response.json({error:auth.message}, {status:auth.status});
+  if (!auth.ok) return respond(req, {error:auth.message}, {status:auth.status});
   try {
-    if (!GEMINI_KEY) return Response.json({error:"GEMINI_API_KEY is not configured"}, {status:503});
+    if (!GEMINI_KEY) return respond(req, {error:"GEMINI_API_KEY is not configured"}, {status:503});
     const body = await req.json();
     const documentId = Number(body?.document_id);
-    if (!Number.isInteger(documentId)) return Response.json({error:"document_id required"}, {status:400});
+    if (!Number.isInteger(documentId)) return respond(req, {error:"document_id required"}, {status:400});
 
     const { data: doc, error: de } = await db.from("documents")
       .select("id,cino,name,mime_type,storage_bucket,storage_path,processing_status,owner_id")
       .eq("id", documentId).eq("owner_id", auth.user.id).single();
-    if (de || !doc) return Response.json({error:"Document not found"}, {status:404});
-    if (doc.storage_bucket !== "case-files" || !doc.storage_path) return Response.json({error:"Document has no accessible stored file"}, {status:422});
+    if (de || !doc) return respond(req, {error:"Document not found"}, {status:404});
+    if (doc.storage_bucket !== "case-files" || !doc.storage_path) return respond(req, {error:"Document has no accessible stored file"}, {status:422});
 
     const { data: file, error: fe } = await db.storage.from(doc.storage_bucket).download(doc.storage_path);
-    if (fe || !file) return Response.json({error:"Could not read stored document"}, {status:500});
+    if (fe || !file) return respond(req, {error:"Could not read stored document"}, {status:500});
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (bytes.length > 25 * 1024 * 1024) return Response.json({error:"Document exceeds Mercury analysis limit"}, {status:413});
+    if (bytes.length > 25 * 1024 * 1024) return respond(req, {error:"Document exceeds Mercury analysis limit"}, {status:413});
 
     await db.from("documents").update({
       processing_status:"AI Processing",
@@ -149,7 +175,7 @@ Deno.serve(async (req) => {
         ai_model:MODEL, status:"failed", error_message:"AI analysis failed"
       }, {onConflict:"document_id,analysis_version"});
       console.error("analyze-court-document: model analysis failed");
-      return Response.json({ok:false, queued:true, retryable:true, error:"AI analysis failed; safe to retry"}, {status:200});
+      return respond(req, {ok:false, queued:true, retryable:true, error:"AI analysis failed; safe to retry"}, {status:200});
     }
 
     const orderDate = validDate(analysis.order_date);
@@ -217,7 +243,7 @@ Deno.serve(async (req) => {
       review_status:"needs_review"
     }).eq("id",documentId).eq("owner_id",auth.user.id);
 
-    return Response.json({
+    return respond(req, {
       ok:true, document_id:documentId, analysis_id:saved.id,
       provider:"Gemini", model:MODEL, status:"needs_review",
       case_identified:matchedCase?.cino || doc.cino || analysis.cino || null,
@@ -227,6 +253,6 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("analyze-court-document: request failed");
-    return Response.json({error:"Document analysis failed"}, {status:500});
+    return respond(req, {error:"Document analysis failed"}, {status:500});
   }
 });
