@@ -1330,6 +1330,7 @@ function MercuryPCMS() {
     const [calendarCases,setCalendarCases]=useState([]);
     const [calendarLoading,setCalendarLoading]=useState(false);
     const [calendarError,setCalendarError]=useState("");
+    const [calendarMode,setCalendarMode]=useState("month");
     const y=calMo.getFullYear(),m=calMo.getMonth();
     const firstDate=`${y}-${String(m+1).padStart(2,"0")}-01`;
     const nextMonth=new Date(y,m+1,1);
@@ -1381,23 +1382,40 @@ function MercuryPCMS() {
     for(let d=1;d<=daysInMo;d++)cells.push(d);
     return (
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Cause List Calendar</h2>
-          {/* Feature 1 — Live Cause List Links */}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginLeft:"auto"}}>
-            <Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn>
-            <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>🏛️ Karnal</Btn>
-            <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/ambala","_blank","noopener,noreferrer")}>🏛️ Ambala</Btn>
-            <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m-1,1))}>← Prev</Btn>
-            <Btn sm v="gold" onClick={()=>setCalMo(new Date())}>Today</Btn>
-            <span style={{padding:"4px 10px",fontWeight:600,fontSize:13,minWidth:125,textAlign:"center"}}>{calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}</span>
-            <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m+1,1))}>Next →</Btn>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+            <div>
+              <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,margin:"0 0 4px"}}>Hearing Calendar</h2>
+              <div style={{fontSize:11,color:"var(--silver)"}}>Your upcoming court dates, organised by month</div>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn>
+              <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn>
+              <Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/ambala","_blank","noopener,noreferrer")}>Ambala eCourts ↗</Btn>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",background:"var(--paper)",border:"1px solid var(--border)",borderRadius:12,padding:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m-1,1))}>‹</Btn>
+              <div style={{fontWeight:750,fontSize:15,minWidth:145,textAlign:"center"}}>{calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}</div>
+              <Btn sm v="ghost" onClick={()=>setCalMo(new Date(y,m+1,1))}>›</Btn>
+              <Btn sm v="gold" onClick={()=>setCalMo(new Date())}>Today</Btn>
+            </div>
+            <div style={{display:"flex",gap:4,padding:3,borderRadius:9,background:"white",border:"1px solid var(--border)"}}>
+              <button onClick={()=>setCalendarMode("month")} style={{border:0,borderRadius:7,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",background:calendarMode==="month"?"var(--navy)":"transparent",color:calendarMode==="month"?"white":"var(--ink3)"}}>Month</button>
+              <button onClick={()=>setCalendarMode("agenda")} style={{border:0,borderRadius:7,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",background:calendarMode==="agenda"?"var(--navy)":"transparent",color:calendarMode==="agenda"?"white":"var(--ink3)"}}>Agenda</button>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:8}}>
+            <div style={{background:"#eef8f5",border:"1px solid #d4eee5",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#387a68",fontWeight:700}}>HEARINGS THIS MONTH</div><div style={{fontSize:22,fontWeight:800,color:"#176b58"}}>{calendarCases.length}</div></div>
+            <div style={{background:"#fff7e8",border:"1px solid #f5e4bd",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#9a6a18",fontWeight:700}}>DATES WITH HEARINGS</div><div style={{fontSize:22,fontWeight:800,color:"#875a0c"}}>{Object.keys(byDate).length}</div></div>
+            <div style={{background:"#f2f5fb",border:"1px solid #dfe6f3",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:10,color:"#586d91",fontWeight:700}}>BUSIEST DAY</div><div style={{fontSize:15,fontWeight:800,color:"#344b73"}}>{Object.entries(byDate).sort((a,b)=>b[1].length-a[1].length)[0]?.[0] ? fmt(Object.entries(byDate).sort((a,b)=>b[1].length-a[1].length)[0][0]) : "—"}</div></div>
           </div>
         </div>
         {calendarError&&<Card p={10} style={{border:"1px solid #f59e0b",background:"#fffbeb",color:"#92400e",fontSize:11}}>⚠️ Cause list could not be loaded: {calendarError}</Card>}
         {calendarLoading&&<Card p={10} style={{fontSize:11,color:"var(--silver)"}}>⏳ Loading hearings for {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}…</Card>}
         {!calendarLoading&&!calendarError&&calendarCases.length===0&&<Card p={12} style={{textAlign:"center",color:"var(--silver)",fontSize:11}}>No pending/active cases are scheduled in {calMo.toLocaleString("en-IN",{month:"long",year:"numeric"})}.</Card>}
-        <Card p={0} style={{overflow:"hidden"}}>
+        {calendarMode==="month"&&<Card p={0} style={{overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--border)"}}>
             {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",padding:"6px 2px",fontSize:9.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase"}}>{d}</div>)}
           </div>
@@ -1414,8 +1432,8 @@ function MercuryPCMS() {
               </div>;
             })}
           </div>
-        </Card>
-        <div style={{flex:1,overflowY:"auto"}}>
+        </Card>}
+        <div style={{flex:1,overflowY:"auto",display:calendarMode==="agenda"?"block":"none"}}>
           {Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,hearings])=>(
             <div key={date} style={{marginBottom:12}}>
               <div style={{fontSize:10.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6}}>
