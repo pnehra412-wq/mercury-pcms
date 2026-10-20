@@ -32,7 +32,7 @@ function safeFileName(value: unknown, fallback: string) {
   return name || fallback;
 }
 
-function digestHex(bytes: Uint8Array) {
+function digestHex(bytes: Uint8Array<ArrayBuffer>) {
   return crypto.subtle.digest("SHA-256", bytes).then((digest) =>
     Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("")
   );
@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
         }
         mime = doc.mime_type || match?.[1] || "application/octet-stream";
 
-        let bytes: Uint8Array;
+        let bytes: Uint8Array<ArrayBuffer>;
         try {
           bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
         } catch {
