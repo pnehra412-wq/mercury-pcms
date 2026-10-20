@@ -8,14 +8,15 @@ const ALLOWED_ORIGINS = new Set([
 
 function headers(req: Request) {
   const origin = req.headers.get("Origin") || "";
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "https://mercuryandroid.vercel.app",
+  const responseHeaders: Record<string, string> = {
     "Access-Control-Allow-Headers": "content-type, authorization, apikey, x-client-info",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Vary": "Origin",
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
   };
+  if (origin && ALLOWED_ORIGINS.has(origin)) responseHeaders["Access-Control-Allow-Origin"] = origin;
+  return responseHeaders;
 }
 
 function json(req: Request, body: unknown, status = 200) {
