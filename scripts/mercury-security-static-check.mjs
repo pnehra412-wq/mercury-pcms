@@ -48,11 +48,12 @@ for (const name of protectedFunctions) {
   check(`${name} verifies JWT`, src.includes("authenticateMercuryRequest(req)"), "shared authentication helper call missing");
   check(`${name} contains owner scoping`, src.includes("owner_id"), "owner_id scoping is absent; review before release");
 }
-for (const name of ["capture-court-order", "analyze-court-document"]) {
+for (const name of ["capture-court-order", "analyze-court-document", "get-document-url"]) {
   const src = read(`supabase/functions/${name}/index.ts`);
   check(`${name} handles CORS preflight`, src.includes('req.method === "OPTIONS"'), "OPTIONS preflight handler missing");
   check(`${name} avoids wildcard CORS`, !src.includes('"Access-Control-Allow-Origin": "*"'), "wildcard CORS remains");
   check(`${name} uses explicit origin allowlist`, src.includes("ALLOWED_ORIGINS.has(origin)"), "explicit origin allowlist missing");
+  check(`${name} does not echo a fallback browser origin`, !src.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
 }
 const office = read("supabase/functions/mercury-office/index.ts");
 check("mercury-office authenticates API requests", office.includes("authenticateMercuryRequest(req)"), "authenticated API route missing");
