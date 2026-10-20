@@ -1,0 +1,17 @@
+name: Mercury practice workflow checks
+on:
+  push:
+    branches: ["practice-workflow-2026-10-20"]
+  pull_request:
+    branches: ["main"]
+jobs:
+  html-and-jsx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm init -y
+      - run: npm install --no-save @babel/core @babel/preset-env @babel/preset-react
+      - run: node scripts/check-mercury-app.cjs
