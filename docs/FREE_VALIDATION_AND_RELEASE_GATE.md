@@ -61,3 +61,7 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 - Added guarded SQL migration `supabase/migrations/20261020041000_owner_scoped_rls_single_user.sql`. It aborts unless exactly one Auth user exists, backfills all current rows (including documents/analysis with null CINO), removes old policies, applies owner-only policies, revokes anonymous/public table privileges, and adds retry-idempotency references. It is committed on the branch but NOT applied to production.
 - Latest configured static and Deno validation passed: [GitHub Actions run 39367450466](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39367450466). This checks source/type safety, not runtime RLS or migration behavior.
 - Remaining release blocker: establish the intended single owner in Supabase Auth, verify backup restoration including Storage bytes, test the guarded migration in a free isolated database, then run cross-user/anonymous negative tests before deployment. No paid branch/project was created.
+
+
+- Final branch verification after aligning the view migration version with Supabase history: [GitHub Actions run 39367983216](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39367983216) passed on commit `eb257d71a865c0e48138ac78122f2a45dbaa68df`.
+- Production migration history confirms the view fix is recorded as version `20261020035653`; the matching branch migration filename is `supabase/migrations/20261020035653_secure_office_views_security_invoker.sql`.
