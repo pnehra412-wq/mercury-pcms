@@ -74,3 +74,11 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 - Live read-only verification found **zero rows in `auth.users`**. Therefore the migration's single-owner preflight will correctly abort today; no owner identity or UUID will be guessed, and the migration must not be applied until the owner account is created through Supabase Auth administration.
 - Live read-only inspection confirms the `public`-role `USING(true)` / `WITH CHECK(true)` policies and broad `anon` table grants remain on `cases`, `tasks`, `hearing_history`, and `documents`. These cannot safely be removed in isolation because the current frontend has not completed the Auth transition. This is still a critical production exposure.
 - The migration remains untested against a live-like PostgreSQL database; do not treat static checks as SQL runtime validation.
+
+
+## Targeted source assertion recheck — 2026-10-20
+
+- Strengthened `scripts/mercury-security-static-check.mjs`: each protected Edge Function must contain an actual owner predicate (`.eq("owner_id", auth.user.id)` or the explicit REST owner filter), rather than merely mentioning `owner_id` somewhere in its source.
+- Directly rechecked the seven branch function sources (`get-document-url`, `prepare-document-share`, `case-ai-chats`, `analyze-court-document`, `confirm-document-analysis`, `capture-court-order`, `capture-mobile-order`): all contain the expected owner predicate, none contains wildcard CORS, and all call the shared auth helper.
+- Directly checked the draft owner migration revokes legacy table and sequence privileges from `anon`, `authenticated`, and `public` before applying least-privilege grants.
+- This targeted source assertion is not a substitute for the complete GitHub Actions workflow or PostgreSQL runtime testing. The latest source commits have no fresh workflow status reported by the GitHub connector.
