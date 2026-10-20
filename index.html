@@ -65,7 +65,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   .mercury-action-primary{border-color:#d8c79f!important;background:linear-gradient(135deg,#fffdf8,#f7f2e6)!important}
   .mercury-dashboard .mercury-stat-grid>div{min-width:0}
   @media(max-width:950px){.mercury-welcome{padding:22px}.mercury-welcome-mark{min-width:135px}.mercury-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:700px){.mercury-welcome{min-height:0;padding:20px 18px;border-radius:13px}.mercury-welcome-mark{display:none}.mercury-welcome h1{font-size:27px;margin-top:16px}.mercury-welcome p{font-size:11.5px}.mercury-welcome-date{margin-top:14px}.mercury-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mercury-quick-actions>button{padding:10px 9px;gap:8px}.mercury-quick-actions>button small{font-size:9px}.mercury-action-icon{width:30px;height:30px}.mercury-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+  @media(max-width:700px){.mercury-welcome{min-height:0;padding:20px 18px;border-radius:13px}.mercury-welcome-mark{display:none}.mercury-welcome h1{font-size:27px;margin-top:16px}.mercury-welcome p{font-size:11.5px}.mercury-welcome-date{margin-top:14px}.mercury-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mercury-quick-actions>button{padding:10px 9px;gap:8px}.mercury-quick-actions>button small{font-size:9px}.mercury-action-icon{width:30px;height:30px}.mercury-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}.mercury-stat-grid>div{padding:8px!important;min-width:0!important}.mercury-stat-grid>div span{font-size:17px!important}.mercury-fee-summary>div{padding:8px!important}.mercury-fee-summary>div>div:last-child{font-size:16px!important}}
 
 @media print {
   body,#root{height:auto!important;overflow:visible!important;background:#fff!important}
@@ -443,7 +443,7 @@ function MercuryPCMS() {
             {label:"Total Cases",    val:cases.length,         icon:"list",  color:"var(--gold)",  action:()=>setView("cases")},
             {label:"Next 7 Days",    val:next7.length,         icon:"bell",  color:"var(--amber)", action:()=>setView("calendar")},
             {label:"Today",          val:todayCases.length,    icon:"alert", color:"var(--rose)",  action:()=>setView("calendar")},
-            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:()=>setView("calendar")},
+            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:()=>{setCaseQuickFilter("overdue");setView("cases");}},
             {label:"No Next Date",   val:missingDate.length,    icon:"cal", color:"#7a5b9e", action:()=>setView("cases")},
             {label:"Pending Tasks",  val:pendTasks.length,     icon:"task",  color:"var(--teal)",  action:()=>setView("tasks")},
             {label:"Fees Received",  val:`₹${(totalFees/1000).toFixed(0)}k`,icon:"fee",color:"#1a6aa8",action:()=>setView("fees")},
@@ -519,7 +519,7 @@ function MercuryPCMS() {
         </div>
 
         {/* Fee summary */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div className="mercury-fee-summary" style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>
           {[["Total Agreed","var(--ink3)",fees.reduce((s,f)=>s+(parseFloat(f.amount_agreed)||0),0)],["Received","var(--teal)",totalFees],["Pending","var(--rose)",Math.max(0,pendingFee)]].map(([l,c,v])=>(
             <Card key={l} p={12} style={{cursor:"pointer"}} onClick={()=>setView("fees")}>
               <div style={{fontSize:10.5,color:"var(--silver)",marginBottom:5}}>{l}</div>
@@ -529,7 +529,7 @@ function MercuryPCMS() {
         </div>
 
         {overdue.length>0&&(
-          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("cases")}>
+          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>{setCaseQuickFilter("overdue");setView("cases");}}>
             <Ic n="alert" size={14} color="var(--rose)"/>
             <span style={{fontSize:12.5,color:"var(--rose)",fontWeight:600}}>{overdue.length} past-date hearing{overdue.length>1?"s":""} — please update next dates</span>
             <Btn sm v="rose" style={{marginLeft:"auto"}}>View</Btn>
@@ -1474,10 +1474,11 @@ function MercuryPCMS() {
     const dateKey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
     const firstDate=dateKey(gridStart),nextDate=dateKey(gridEnd);
     const shiftDate=(amount,unit)=>{
-      const d=new Date((selectedDate||TODAY)+"T12:00:00");
-      if(unit==="month")d.setDate(1),d.setMonth(d.getMonth()+amount);
-      else if(unit==="week")d.setDate(d.getDate()+7*amount);
-      else d.setDate(d.getDate()+amount);
+      const current=new Date((selectedDate||TODAY)+"T12:00:00");
+      let d;
+      if(unit==="month")d=new Date(current.getFullYear(),current.getMonth()+amount,1,12,0,0);
+      else if(unit==="week")d=new Date(current.getFullYear(),current.getMonth(),current.getDate()+7*amount,12,0,0);
+      else d=new Date(current.getFullYear(),current.getMonth(),current.getDate()+amount,12,0,0);
       const next=dateKey(d);setSelectedDate(next);setCalMo(new Date(d.getFullYear(),d.getMonth(),1));
     };
     useEffect(()=>{
@@ -1631,11 +1632,11 @@ function MercuryPCMS() {
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
         <div style={{display:"flex",alignItems:"center"}}>
           <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Fee Ledger</h2>
-          <Btn style={{marginLeft:"auto"}} onClick={()=>setAddFee(true)}><Ic n="plus" size={14}/>Add Entry</Btn>
+          <Btn sm style={{marginLeft:"auto",padding:"6px 9px",fontSize:10}} onClick={()=>setAddFee(true)}><Ic n="plus" size={12}/>Add Fee</Btn>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
           {[["Total Agreed","var(--ink3)",total],["Received","var(--teal)",recv],["Pending","var(--rose)",Math.max(0,pending)]].map(([l,c,v])=>(
-            <Card key={l} p={14}><div style={{fontSize:11,color:"var(--silver)",marginBottom:6}}>{l}</div><div style={{fontSize:22,fontWeight:900,fontFamily:"'Playfair Display',serif",color:c}}>₹{v.toLocaleString("en-IN")}</div></Card>
+            <Card key={l} p={10}><div style={{fontSize:10,color:"var(--silver)",marginBottom:4}}>{l}</div><div style={{fontSize:19,fontWeight:850,fontFamily:"'Playfair Display',serif",color:c,overflowWrap:"anywhere"}}>₹{v.toLocaleString("en-IN")}</div></Card>
           ))}
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
