@@ -316,23 +316,48 @@ function MercuryPCMS() {
 
   useEffect(() => { loadAll(); }, []);
 
-  // Browser notifications repeat every 30 minutes while Mercury is open; each task is announced once per local day.
+  // Browser notifications repeat every 30 minutes while Mercury is open.
+  // Task reminders are individual; hearing reminders are batched once per local day.
   useEffect(() => {
-    const checkDueTasks = () => {
+    const checkDueItems = () => {
       if (!("Notification" in window) || Notification.permission !== "granted") return;
       tasks.filter(t => !t.done && t.due && t.due <= TODAY).forEach(t => {
-        const key = "mercury-reminder-" + (t.id || t.title) + "-" + TODAY;
+        const key = "mercury-reminder-task-" + (t.id || t.title) + "-" + TODAY;
         try {
-          if (sessionStorage.getItem(key)) return;
+          if (localStorage.getItem(key)) return;
           new Notification("Mercury task due", {body:(t.title || "Untitled task") + " · " + t.due});
-          sessionStorage.setItem(key,"1");
+          localStorage.setItem(key,"1");
         } catch(e) {}
       });
+      const upcoming = cases
+        .filter(c => {
+          const d = daysUntil(c.date_next_list);
+          return Number.isFinite(d) && d >= 0 && d <= 3;
+        })
+        .sort((a,b) => String(a.date_next_list).localeCompare(String(b.date_next_list)));
+      const hearingKey = "mercury-reminder-hearings-" + TODAY;
+      try {
+        if (upcoming.length && !localStorage.getItem(hearingKey)) {
+          const todayCount = upcoming.filter(c => daysUntil(c.date_next_list) === 0).length;
+          const tomorrowCount = upcoming.filter(c => daysUntil(c.date_next_list) === 1).length;
+          const details = [];
+          if (todayCount) details.push(todayCount + " today");
+          if (tomorrowCount) details.push(tomorrowCount + " tomorrow");
+          const laterCount = upcoming.length - todayCount - tomorrowCount;
+          if (laterCount) details.push(laterCount + " in 2–3 days");
+          const sample = upcoming.slice(0,3).map(c => partyLabel(c)).join("; ");
+          new Notification("Mercury cause-list reminder", {
+            body: upcoming.length + " hearing(s) coming up: " + details.join(", ") + (sample ? ". " + sample : ""),
+            tag: "mercury-hearings-" + TODAY
+          });
+          localStorage.setItem(hearingKey,"1");
+        }
+      } catch(e) {}
     };
-    checkDueTasks();
-    const timer=setInterval(checkDueTasks, 30*60*1000);
+    checkDueItems();
+    const timer=setInterval(checkDueItems, 30*60*1000);
     return () => clearInterval(timer);
-  }, [tasks]);
+  }, [tasks, cases]);
 
   const allDists  = useMemo(() => [...new Set(cases.map(c=>c.district_name))].sort(), [cases]);
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
