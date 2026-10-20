@@ -345,7 +345,8 @@ function MercuryPCMS() {
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
   const todayCases = useMemo(() => cases.filter(c=>daysUntil(c.date_next_list)===0), [cases]);
   const next7      = useMemo(() => cases.filter(c=>{const d=daysUntil(c.date_next_list);return d>=0&&d<=7;}), [cases]);
-  const overdue    = useMemo(() => cases.filter(c=>daysUntil(c.date_next_list)<0), [cases]);
+  const overdue    = useMemo(() => cases.filter(c=>c.date_next_list && daysUntil(c.date_next_list)<0), [cases]);
+  const missingDate = useMemo(() => cases.filter(c=>!c.date_next_list), [cases]);
   const pendTasks  = useMemo(() => tasks.filter(t=>!t.done), [tasks]);
 
   const filtered = useMemo(() => {
