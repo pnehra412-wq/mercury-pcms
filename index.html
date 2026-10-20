@@ -100,6 +100,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   button{touch-action:manipulation}
 }
 
+  @media(max-width:700px){
+    .mercury-fee-header,.mercury-fee-row{grid-template-columns:minmax(0,1fr) 66px 72px!important;gap:5px!important;padding:8px!important}
+    .mercury-fee-header>div:nth-child(2),.mercury-fee-header>div:nth-child(3),.mercury-fee-row>div:nth-child(2),.mercury-fee-row>div:nth-child(3){display:none!important}
+    .mercury-fee-row>div:first-child>div:first-child{font-size:11px!important;overflow-wrap:anywhere}
+    .mercury-fee-row>div:nth-child(4),.mercury-fee-row>div:nth-child(5){font-size:10px!important;overflow-wrap:anywhere}
+  }
+
   /* On narrow screens, fit the full seven-day month grid instead of clipping it horizontally. */
   .mercury-calendar-month-scroll{width:100%;max-width:100%}
   @media(max-width:700px){
@@ -1642,14 +1649,14 @@ function MercuryPCMS() {
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
           <Card p={0} style={{overflow:"hidden"}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1.5fr 90px 90px 80px",padding:"8px 14px",background:"var(--paper)",borderBottom:"1px solid var(--border)",fontSize:9.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase",letterSpacing:"0.08em",gap:8}}>
+            <div className="mercury-fee-header" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.5fr) 90px 90px 80px",padding:"8px 14px",background:"var(--paper)",borderBottom:"1px solid var(--border)",fontSize:9.5,fontWeight:700,color:"var(--silver)",textTransform:"uppercase",letterSpacing:"0.08em",gap:8}}>
               {["Client / Case","Description","Agreed","Paid","Balance"].map(h=><div key={h}>{h}</div>)}
             </div>
             {fees.length===0&&<div style={{padding:32,textAlign:"center",color:"var(--silver)",fontSize:13}}>No fee entries yet</div>}
             {fees.map((f,i)=>{
               const bal=(parseFloat(f.amount_agreed)||0)-(parseFloat(f.amount_paid)||0);
               const c=cases.find(x=>x.cino===f.cino);
-              return <div key={f.id} style={{display:"grid",gridTemplateColumns:"1fr 1.5fr 90px 90px 80px",padding:"9px 14px",borderBottom:"1px solid var(--border)",gap:8,alignItems:"center",animation:`fadeUp 0.24s ease ${i*0.02}s both`}}>
+              return <div key={f.id} className="mercury-fee-row" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1.5fr) 90px 90px 80px",padding:"9px 14px",borderBottom:"1px solid var(--border)",gap:8,alignItems:"center",animation:`fadeUp 0.24s ease ${i*0.02}s both`}}>
                 <div><div style={{fontSize:12,fontWeight:500}}>{f.client_name||"—"}</div>{c&&<div style={{fontSize:10,color:"var(--silver)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{partyLabel(c)}</div>}</div>
                 <div style={{fontSize:11.5,color:"var(--ink3)"}}>{f.description||"—"}</div>
                 <div style={{fontSize:12,fontWeight:600}}>₹{(parseFloat(f.amount_agreed)||0).toLocaleString("en-IN")}</div>
