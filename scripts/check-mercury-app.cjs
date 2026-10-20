@@ -17,6 +17,7 @@ for (const [label, pattern] of [
   ["CSV export utility", /const downloadCsv\s*=/],
   ["case registry export", /mercury-case-registry\.csv/],
   ["diary export", /mercury-case-diary\.csv/],
+  ["diary next-date sync", /Hearing logged and next hearing date updated/],
   ["browser reminder permission", /Notification\.requestPermission/],
   ["upcoming hearing reminders", /Mercury cause-list reminder/],
   ["daily hearing reminder guard", /mercury-reminder-hearings-/],
