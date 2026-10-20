@@ -82,3 +82,15 @@ Do not call Mercury PCMS complete until all of these are true: frontend and func
 - Directly rechecked the seven branch function sources (`get-document-url`, `prepare-document-share`, `case-ai-chats`, `analyze-court-document`, `confirm-document-analysis`, `capture-court-order`, `capture-mobile-order`): all contain the expected owner predicate, none contains wildcard CORS, and all call the shared auth helper.
 - Directly checked the draft owner migration revokes legacy table and sequence privileges from `anon`, `authenticated`, and `public` before applying least-privilege grants.
 - This targeted source assertion is not a substitute for the complete GitHub Actions workflow or PostgreSQL runtime testing. The latest source commits have no fresh workflow status reported by the GitHub connector.
+
+
+## PostgreSQL integration test and final CI recheck — 2026-10-20
+
+This section supersedes the earlier statements above that the owner migration had not been runtime-tested.
+
+- Added an isolated PostgreSQL 16 service to GitHub Actions. It runs the actual owner migration against a disposable fixture with representative CINO-linked rows, legacy broad grants, a document with null CINO, and a document-analysis row with null CINO.
+- The migration integration test passed. Assertions confirmed owner backfill across all eleven tables, RLS enabled and owner policy present, anonymous SELECT removed, authenticated SELECT retained, authenticated TRUNCATE removed, sequence privileges reset, and document `file_data` and unlinked document/analysis rows preserved.
+- A separate zero-Auth-user fixture confirmed the migration correctly aborts before modifying schema/data when the single-owner prerequisite is absent.
+- The latest full workflow passed on commit `19d26bb9e16109ad8962cc610f60b52be686b739`: [PR workflow run 39379056572](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39379056572) and [push workflow run 39379052485](https://github.com/pnehra412-wq/mercury-pcms/actions/runs/39379052485). Both the static guardrail/Deno type-check job and the disposable PostgreSQL migration job passed.
+- Live read-only checks also confirmed zero unmatched CINO rows in `case_ai_chats`, `case_contacts`, `case_issues`, `case_notes`, `court_watch`, and `fees`. Added explicit preflight guards for these tables to the migration.
+- Limits remain: this is a representative isolated PostgreSQL fixture, not a clone of the production Supabase schema. The owner migration has not been applied to production, and no anonymous/cross-owner API tests, Storage restore drill, or Windows/Android end-to-end tests have been completed. The live production policy/function risks remain until the coordinated release.
