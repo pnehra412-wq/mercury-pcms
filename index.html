@@ -940,7 +940,7 @@ function MercuryPCMS() {
                     <Btn sm v="ghost" onClick={async()=>{
                       const txt=document.getElementById(`order-${c.cino}`)?.value;
                       if(!txt)return;
-                      const today2=new Date().toISOString().slice(0,10);
+                      const today2=TODAY;
                       const res=await sb.from("hearing_history").insert({cino:c.cino,hearing_date:today2,purpose:"Order",outcome:txt.slice(0,200),notes:"Full order pasted",next_date:null});
                       if(Array.isArray(res))setHistory(h=>[...h,...res]);
                       notify("✅ Order saved to diary");
