@@ -82,8 +82,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   .mercury-topbar{padding:8px 10px !important;min-height:48px !important;gap:7px !important}
   .mercury-topbar .mercury-search{max-width:none !important;width:100% !important;padding:7px 9px !important}
   .mercury-topbar .mercury-status-text,.mercury-topbar .mercury-today{display:none !important}
-  .mercury-main-pad{padding:10px 10px calc(76px + env(safe-area-inset-bottom,0px)) !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch}
-  .mercury-main-pad > *{min-width:0}
+  .mercury-main-pad{padding:10px 10px calc(104px + env(safe-area-inset-bottom,0px)) !important;overflow-x:hidden !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;scroll-padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+  .mercury-main-pad > *{min-width:0;max-width:100%}
   .mercury-mobile-nav{display:flex;position:fixed;left:0;right:0;bottom:var(--mercury-system-bottom-safe, env(safe-area-inset-bottom,0px));z-index:500;height:64px;padding:5px 8px;background:rgba(20,27,39,.98);border-top:1px solid rgba(255,255,255,.10);box-shadow:0 -6px 24px rgba(0,0,0,.16);gap:4px}
   .mercury-mobile-nav button{flex:1;border:0;background:transparent;color:#8b9cb0;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:9px;font-weight:600;cursor:pointer;min-width:0;touch-action:manipulation}
   .mercury-mobile-nav button.active{color:#e8c96a;background:rgba(201,168,76,.12)}
@@ -111,7 +111,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);o
   .mercury-calendar-month-scroll{width:100%;max-width:100%}
   @media(max-width:700px){
     .mercury-calendar-month-scroll{overflow-x:hidden!important;overflow-y:visible!important;height:auto!important;max-height:none!important;display:block!important}
-    .mercury-main-pad>.fade-up{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;flex:0 0 auto!important}
+    .mercury-main-pad>.fade-up{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;flex:0 0 auto!important;margin-bottom:0!important}
     .mercury-calendar-month-scroll{flex:0 0 auto!important;min-height:0!important;max-height:none!important}
     .mercury-calendar-month-grid{grid-auto-rows:minmax(68px,auto)!important;align-content:start!important}
     .mercury-calendar-weekdays,.mercury-calendar-month-grid{display:grid!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;grid-auto-rows:auto!important;min-width:0!important;width:100%!important;height:auto!important;max-height:none!important;visibility:visible!important}
