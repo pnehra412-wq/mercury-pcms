@@ -28,7 +28,7 @@ for (const [label, pattern] of [
   ["task export", /mercury-tasks\.csv/],
   ["mobile bottom search uses direct focus", /input\.focus\(\);input\.scrollIntoView\(\{block:"nearest"\}\)/],
   ["mobile search active state", /className=\{view===n\.id \? "active":""\}/],
-  ["search safely handles missing fields", /String\(v\|\|""\)\.toLowerCase\(\)\.includes\(q\)/],
+  ["search safely handles null fields", /String\(v\?\?""\)\.toLowerCase\(\)\.includes\(q\)/],
   ["task scope filters", /value="overdue">Overdue only/],
   ["dashboard quick actions", /mercury-quick-actions/],
   ["local timezone date", /const TODAY = \(\(\)=>\{const d=new Date\(\)/]
