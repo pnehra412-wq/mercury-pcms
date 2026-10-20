@@ -22,7 +22,7 @@ for (const [label, pattern] of [
   ["daily hearing reminder guard", /mercury-reminder-hearings-/],
   ["case document filename search", /Search this case's documents by filename/],
   ["case drafting brief", /copyCaseDraftingBrief/],
-  ["drafting brief source limitations", /document contents are not included in this brief/],
+  ["drafting brief source limitations", /contents are not included in this brief/],
   ["task search", /Search tasks/],
   ["task scope filters", /value="overdue">Overdue only/],
   ["dashboard quick actions", /mercury-quick-actions/],
