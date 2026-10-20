@@ -345,9 +345,9 @@ function MercuryPCMS() {
           if (tomorrowCount) details.push(tomorrowCount + " tomorrow");
           const laterCount = upcoming.length - todayCount - tomorrowCount;
           if (laterCount) details.push(laterCount + " in 2–3 days");
-          const sample = upcoming.slice(0,3).map(c => partyLabel(c)).join("; ");
+          // Keep client and case names out of operating-system notifications for confidentiality.
           new Notification("Mercury cause-list reminder", {
-            body: upcoming.length + " hearing(s) coming up: " + details.join(", ") + (sample ? ". " + sample : ""),
+            body: upcoming.length + " hearing(s) coming up: " + details.join(", ") + ". Open Mercury to review the cause list.",
             tag: "mercury-hearings-" + TODAY
           });
           localStorage.setItem(hearingKey,"1");
