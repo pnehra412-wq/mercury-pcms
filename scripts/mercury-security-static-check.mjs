@@ -69,6 +69,10 @@ const chatLinks = read("supabase/functions/case-ai-chats/index.ts");
 check("Case chat links do not fall back to an allowed origin", !chatLinks.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
 check("Case chat links use explicit CORS allowlist", chatLinks.includes("ALLOWED_ORIGINS.has(origin)") && chatLinks.includes("responseHeaders[\"Access-Control-Allow-Origin\"] = origin"), "explicit origin allowlist missing");
 
+const confirmation = read("supabase/functions/confirm-document-analysis/index.ts");
+check("Analysis confirmation does not fall back to an allowed origin", !confirmation.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
+check("Analysis confirmation uses explicit CORS allowlist", confirmation.includes("ALLOWED_ORIGINS.has(origin)") && confirmation.includes("responseHeaders[\"Access-Control-Allow-Origin\"] = origin"), "explicit origin allowlist missing");
+
 check("Mobile capture supports clients without Origin", mobile.includes('if (origin && !ALLOWED_ORIGINS.has(origin))'), "missing Origin is rejected, potentially breaking native share");
 check("Mobile capture does not fall back to an allowed ACAO origin", !mobile.includes(' : "https://mercuryandroid.vercel.app"'), "unapproved origins receive a fallback ACAO header");
 
