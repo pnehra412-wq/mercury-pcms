@@ -42,7 +42,6 @@ const protectedFunctions = [
   "confirm-document-analysis",
   "capture-court-order",
   "capture-mobile-order",
-  "publish-mercury-web",
 ];
 for (const name of protectedFunctions) {
   const src = read(`supabase/functions/${name}/index.ts`);
@@ -65,6 +64,8 @@ const sharing = read("supabase/functions/prepare-document-share/index.ts");
 check("Legacy document migration has a decoded-size cap", sharing.includes("MAX_LEGACY_FILE_BYTES") && sharing.includes("estimatedBytes > MAX_LEGACY_FILE_BYTES"), "legacy inline-file migration can allocate oversized decoded content");
 
 const publisher = read("supabase/functions/publish-mercury-web/index.ts");
+check("Publisher verifies JWT", publisher.includes("authenticateMercuryRequest(req)"), "shared authentication helper call missing");
+check("Publisher restricts caller to configured owner", publisher.includes("OWNER_USER_ID") && publisher.includes("auth.user.id !== OWNER_USER_ID"), "configured owner-only gate missing");
 check("Publisher no longer uses legacy token literal", !publisher.includes("MERCURY_PUBLISH_TOKEN") && !publisher.includes("MERCURY_WEB_PUBLISH_TOKEN"), "legacy publishing-token reference found");
 const officeLower = office.toLowerCase();
 check("Office source has no legacy shared-key variable", !officeLower.includes("mercury_office_key"), "legacy office key variable found");
