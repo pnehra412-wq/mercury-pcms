@@ -169,3 +169,12 @@ Evidence source: connected Supabase project metadata, Security Advisor, deployed
 - **BLOCKER — no fee incurred:** no Supabase development branch was created because the user instruction is to avoid all fees. No production tables, policies, grants, views, Storage objects, Auth users, or deployed functions were changed by this run.
 - **Next safe actions:** inspect the exact deployed view definitions and relevant grants; review current branch copies of `get-document-url` and `prepare-document-share`; prepare branch-only patches that require caller authentication and enforce resource ownership, with no reliance on CORS as a security boundary; add tests for missing/invalid JWT, unknown document ID, cross-owner document ID, wrong bucket/path, and partial upload/database failure. Do not deploy without a verified owner account, recoverable database and Storage backups, and explicit production-release approval.
 - **Validation honesty:** this was a read-only live audit and documentation update. No application build, Deno check, browser test, cross-user test, or migration execution was performed in this run.
+
+
+## Follow-up recheck — 2026-10-20 03:51 UTC
+
+Read-only Supabase Security Advisor recheck confirms the production database findings are still present:
+- 7 tables with RLS enabled but no policies: `case_ai_chats`, `case_contacts`, `case_issues`, `case_notes`, `court_watch`, `document_analysis`, and `fees`.
+- 2 views still flagged as SECURITY DEFINER: `office_court_watch` and `office_document_inbox`.
+
+No production DDL, policies, views, Auth users, Storage objects, or Edge Functions were changed during this recheck. These findings remain release blockers; do not infer that the source-branch fixes have secured production.
