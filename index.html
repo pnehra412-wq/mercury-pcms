@@ -603,6 +603,52 @@ function MercuryPCMS() {
       if(activeTab==="ai") loadChatLinks();
     }, [activeTab,c.cino]);
 
+    const copyCaseDraftingBrief = () => {
+      const recentHistory = caseHistory.slice(0,12).map((h,i)=>[
+        (i+1)+". Hearing date: "+(h.hearing_date||"Not recorded"),
+        "Purpose: "+(h.purpose||"Not recorded"),
+        "Proceedings/outcome: "+(h.outcome||"Not recorded"),
+        "Next date: "+(h.next_date||"Not recorded"),
+        "Notes: "+(h.notes||"None")
+      ].join("\n")).join("\n\n");
+      const documentList = caseDocs.map((d,i)=>((i+1)+". "+(d.name||"Unnamed document"))).join("\n");
+      const brief = [
+        "LEGAL DRAFTING BRIEF — MERCURY PCMS",
+        "Prepare work only from the facts and source documents supplied. Do not invent facts, dates, pleadings, citations, statutory provisions, or case law. Separate established record facts from client assertions and assumptions. Flag missing or inconsistent material and verify authorities before relying on them.",
+        "",
+        "CASE IDENTIFICATION",
+        "CNR: "+(c.cino||"Not recorded"),
+        "Case type: "+(c.type_name||"Not recorded"),
+        "Petitioner/plaintiff/applicant: "+(c.petparty_name||"Not recorded"),
+        "Respondent/defendant: "+(c.resparty_name||"Not recorded"),
+        "Court: "+(c.court_no_desg_name||"Not recorded"),
+        "District: "+(c.district_name||"Not recorded"),
+        "Next hearing: "+(c.date_next_list||"Not recorded"),
+        "Purpose: "+(c.purpose_name||"Not recorded"),
+        "Status: "+(c.case_status||"Not recorded"),
+        "",
+        "CHAMBER NOTES",
+        c.notes_adv||c.note||"No chamber note recorded.",
+        "",
+        "RECORDED HEARING HISTORY (newest first)",
+        recentHistory||"No hearing history recorded in Mercury.",
+        "",
+        "DOCUMENTS LISTED IN MERCURY (filenames only; contents are not included in this brief)",
+        documentList||"No case documents are listed.",
+        "",
+        "TASK",
+        "First summarise the material facts, procedural history, next steps and missing information. Then prepare the requested legal draft in Indian legal drafting style. Use paragraph numbering and begin each substantive paragraph with 'That' where appropriate. Do not represent this brief alone as a substitute for reviewing the original documents. Ask for the specific draft type if it has not been stated."
+      ].join("\n");
+      try {
+        const el=document.createElement("textarea");
+        el.value=brief;el.style.cssText="position:fixed;top:0;left:0;opacity:0;";
+        document.body.appendChild(el);el.focus();el.select();
+        const ok=document.execCommand("copy");document.body.removeChild(el);
+        if(ok) notify("Case drafting brief copied. Review it and attach source documents before drafting.","var(--teal)");
+        else notify("Copy was blocked by the browser. Please try again.","var(--amber)");
+      } catch(e) { notify("Could not copy the case brief. Please try again.","var(--rose)"); }
+    };
+
     const saveChatLink = async () => {
       if(!chatUrl.trim() || chatSaving) return;
       setChatSaving(true);
@@ -1073,6 +1119,12 @@ function MercuryPCMS() {
                   </div>
                 </div>
 
+                <div style={{background:"var(--paper)",border:"1px solid var(--border)",borderRadius:9,padding:12}}>
+                  <div style={{fontSize:11.5,fontWeight:800,color:"var(--ink3)",marginBottom:5}}>📝 Start a case-grounded draft</div>
+                  <div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Copies the case details, chamber notes, recorded hearings and document filenames into a structured prompt. It does not include document contents; review and attach the original files before relying on a draft.</div>
+                  <Btn sm v="gold" onClick={copyCaseDraftingBrief}><Ic n="copy" size={12}/>Copy Case Drafting Brief</Btn>
+                </div>
+
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <button onClick={()=>openExternal("https://chatgpt.com/")} style={{border:"1px solid var(--border)",background:"var(--paper)",color:"var(--ink)",borderRadius:9,padding:"12px",textAlign:"left",cursor:"pointer"}}>
                     <div style={{fontSize:12,fontWeight:800}}>🤖 ChatGPT</div>
@@ -1370,13 +1422,37 @@ function MercuryPCMS() {
 
   // ── TASKS ────────────────────────────────────────────────────────────────
   const TasksView = () => {
-    const pend=tasks.filter(t=>!t.done);const done=tasks.filter(t=>t.done);
+    const [taskSearch,setTaskSearch]=useState("");
+    const [taskScope,setTaskScope]=useState("pending");
+    const filteredTasks=useMemo(()=>{
+      const q=taskSearch.trim().toLowerCase();
+      return [...tasks].filter(t=>{
+        const c=cases.find(x=>x.cino===t.cino);
+        const hay=[t.title,t.cino,t.due,t.priority,c&&c.petparty_name,c&&c.resparty_name].filter(Boolean).join(" ").toLowerCase();
+        if(q&&!hay.includes(q)) return false;
+        if(taskScope==="pending"&&t.done) return false;
+        if(taskScope==="done"&&!t.done) return false;
+        if(taskScope==="overdue"&&(t.done||!t.due||t.due>=TODAY)) return false;
+        if(taskScope==="today"&&(t.done||t.due!==TODAY)) return false;
+        return true;
+      }).sort((a,b)=>{
+        if(a.done!==b.done) return a.done?1:-1;
+        return (a.due||"9999-99-99").localeCompare(b.due||"9999-99-99");
+      });
+    },[tasks,cases,taskSearch,taskScope]);
+    const pend=filteredTasks.filter(t=>!t.done);const done=filteredTasks.filter(t=>t.done);
     return (
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
         <div style={{display:"flex",alignItems:"center"}}>
           <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Tasks & Reminders</h2>
           <div style={{marginLeft:"auto",display:"flex",gap:7,flexWrap:"wrap"}}><Btn sm v="ghost" onClick={async()=>{if(!("Notification" in window)){notify("This browser does not support notifications","var(--amber)");return;}const permission=await Notification.requestPermission();if(permission!=="granted"){notify("Browser notifications were not enabled","var(--amber)");return;}const due=tasks.filter(t=>!t.done&&t.due&&t.due<=TODAY);if(!due.length)new Notification("Mercury PCMS",{body:"No overdue or due-today tasks. Reminders are enabled while this app is open."});due.slice(0,5).forEach(t=>new Notification("Mercury task due",{body:(t.title||"Untitled task")+" · "+(t.due||"No date")}));notify("Browser reminders enabled while Mercury is open","var(--teal)");}}><Ic n="bell" size={12}/>Enable reminders</Btn><Btn onClick={()=>setAddTask("__free__")}><Ic n="plus" size={14}/>New Task</Btn></div>
         </div>
+        <div style={{display:"grid",gridTemplateColumns:"minmax(180px,1fr) minmax(160px,240px) auto",gap:8,alignItems:"end"}}>
+          <div><Lbl c="Search tasks"/><input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Task, party name, CNR…" style={iS}/></div>
+          <div><Lbl c="Show"/><select value={taskScope} onChange={e=>setTaskScope(e.target.value)} style={iS}><option value="pending">Pending tasks</option><option value="overdue">Overdue only</option><option value="today">Due today</option><option value="done">Completed tasks</option><option value="all">All tasks</option></select></div>
+          <Btn sm v="ghost" onClick={()=>{setTaskSearch("");setTaskScope("pending");}}>Reset</Btn>
+        </div>
+        <div style={{fontSize:10.5,color:"var(--silver)"}}>Showing {filteredTasks.length} matching task(s), ordered by due date.</div>
         <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignContent:"start"}}>
           <Card p={0} style={{overflow:"hidden",alignSelf:"start"}}>
             <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",fontWeight:600,fontSize:13,display:"flex",gap:7,alignItems:"center"}}><Ic n="alert" size={13} color="var(--rose)"/>Pending ({pend.length})</div>
