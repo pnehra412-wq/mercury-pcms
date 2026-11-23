@@ -29,7 +29,7 @@ const ecourtsMigration="supabase/migrations/20261123101119_add_ecourts_sync_fiel
 assert(fs.existsSync(ecourtsMigration),"eCourts schema migration missing");
 assert(fs.readFileSync(ecourtsMigration,"utf8").includes("add column if not exists ecourts_status"),"eCourts status field missing from migration");
 const config=fs.readFileSync("supabase/config.toml","utf8");
-for(const slug of ["capture-mobile-order","capture-shared-court-order","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(config.includes("[functions."+slug+"]\\nverify_jwt = true"),"JWT verification config missing for "+slug);
+for(const slug of ["capture-mobile-order","capture-shared-court-order","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(config.includes("[functions."+slug+"]\nverify_jwt = true"),"JWT verification config missing for "+slug);
 const edgeSource=slug=>fs.readFileSync("supabase/functions/"+slug+"/index.ts","utf8");
 for(const slug of ["capture-mobile-order","mercury-office","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(!edgeSource(slug).includes("bc8bbb9e-3549-4d98-acd0-e25a2db65740"),"Hardcoded account identifier remains in "+slug);
 assert(edgeSource("capture-mobile-order").includes("auth.getUser(jwt)"),"Court capture must verify the session");
