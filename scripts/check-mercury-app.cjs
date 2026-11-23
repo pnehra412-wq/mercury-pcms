@@ -39,7 +39,10 @@ for (const [label, pattern] of [
   ["PWA service worker registration", /navigator\.serviceWorker\.register/],
   ["backup restore ignores duplicate rows", /resolution=ignore-duplicates/],
   ["backup restore preserves existing data", /will NOT be overwritten or deleted/],
-  ["backup document ID remapping", /documentIdMap/]
+  ["backup document ID remapping", /documentIdMap/],
+  ["full ZIP backup export", /window\\.JSZip/],
+  ["full ZIP backup restore", /JSZip\\.loadAsync\\(file\\)/],
+  ["private Storage backup manifest", /storage-manifest\\.json/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
 console.log("Mercury PCMS checks passed: JSX parses; dashboard, diary, exports, reminders, document search, task filters, and drafting brief are present.");
