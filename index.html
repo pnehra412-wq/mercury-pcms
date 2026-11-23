@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v12"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v13"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -358,8 +358,7 @@ function MercuryPCMS() {
     for(const [source,target] of Object.entries(fields)){if(Object.prototype.hasOwnProperty.call(raw,source)){const value=raw[source];out[target]=["date_next_list","date_of_decision","date_last_list"].includes(target)?date(value):["reg_year","reg_no"].includes(target)?integer(value):text(value);}}
     if(Object.prototype.hasOwnProperty.call(raw,"note"))out.ecourts_note=text(raw.note);
     if(Object.prototype.hasOwnProperty.call(raw,"updated"))out.updated=raw.updated===true||String(raw.updated).toLowerCase()==="true";
-    const disposed=!!out.date_of_decision||!!out.disp_name;
-    out.ecourts_status=disposed?"Disposed":"Pending";
+    if(Object.prototype.hasOwnProperty.call(raw,"date_of_decision")||Object.prototype.hasOwnProperty.call(raw,"disp_name")){const disposed=!!out.date_of_decision||!!out.disp_name;out.ecourts_status=disposed?"Disposed":"Pending";}
     out.ecourts_last_synced_at=new Date().toISOString();
     return out;
   };
@@ -388,12 +387,12 @@ function MercuryPCMS() {
     try{
       const existingByCino=new Map(ecourtsPreview.existing.map(row=>[row.cino,row]));
       const updates=ecourtsPreview.records.filter(row=>existingByCino.has(row.cino));
-      const inserts=ecourtsPreview.records.filter(row=>!existingByCino.has(row.cino)).map(row=>({...row,user_id:authUser.id,case_status:row.ecourts_status}));
+      const inserts=ecourtsPreview.records.filter(row=>!existingByCino.has(row.cino)).map(row=>({...row,user_id:authUser.id,case_status:row.ecourts_status||"Pending"}));
       for(let i=0;i<updates.length;i+=8){
         const batch=updates.slice(i,i+8);
         const results=await Promise.all(batch.map(async row=>{
           const existing=existingByCino.get(row.cino),payload={...row};
-          if(["Pending","Disposed"].includes(existing.case_status))payload.case_status=row.ecourts_status;
+          if(row.ecourts_status&&["Pending","Disposed"].includes(existing.case_status))payload.case_status=row.ecourts_status;
           const result=await sbReq("PATCH","cases?cino=eq."+encodeURIComponent(row.cino),payload);
           return Array.isArray(result)&&result.length>0;
         }));
