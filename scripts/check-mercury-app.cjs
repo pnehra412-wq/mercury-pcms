@@ -31,7 +31,12 @@ for (const [label, pattern] of [
   ["search safely handles null fields", /String\(v\?\?""\)\.toLowerCase\(\)\.includes\(q\)/],
   ["task scope filters", /value="overdue">Overdue only/],
   ["dashboard quick actions", /mercury-quick-actions/],
-  ["local timezone date", /const TODAY = \(\(\)=>\{const d=new Date\(\)/]
+  ["local timezone date helper", /const localDateKey=/],
+  ["date rollover refresh", /todayVersion/],
+  ["private case-file upload", /authClient\\.storage\\.from\\("case-files"\\)\\.upload/],
+  ["mobile Tasks navigation", /id:"tasks",icon:"task",label:"Tasks"/],
+  ["mobile Fees navigation", /id:"fees",icon:"fee",label:"Fees"/],
+  ["PWA service worker registration", /navigator\\.serviceWorker\\.register/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
 console.log("Mercury PCMS checks passed: JSX parses; dashboard, diary, exports, reminders, document search, task filters, and drafting brief are present.");
