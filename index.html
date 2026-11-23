@@ -1772,9 +1772,8 @@ function MercuryPCMS() {
       try{
         const backup=JSON.parse(await file.text());if(backup?.format!=="MercuryPCMS-backup-v1"||!backup.tables)throw new Error("This is not a Mercury PCMS backup file.");
         if(!window.confirm("Restore this backup by ADDING missing records only? Existing cases, client details, advocate notes, fee entries and other current records will NOT be overwritten or deleted."))return;
-        const order=["cases","documents","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];
-        const backupDocIds=new Set((backup.tables.documents||[]).filter(row=>row&&row.user_id===authUser.id).map(row=>String(row.id)));
-        const caseLinks=[];let insertedTotal=0,skippedTotal=0;
+        const order=["documents","cases","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];
+        const documentIdMap=new Map();let insertedTotal=0,skippedTotal=0;
         const keyFor=(table,row)=>table==="case_ai_chats"?String(row.cino||"")+"|"+String(row.provider||""):table==="cases"||table==="court_watch"?String(row.cino||""):table==="documents"?String(row.fingerprint||""):"";
         for(const table of order){
           const source=Array.isArray(backup.tables[table])?backup.tables[table]:[];
@@ -1782,24 +1781,39 @@ function MercuryPCMS() {
           const select=table==="cases"||table==="court_watch"?"id,cino":table==="documents"?"id,fingerprint":table==="case_ai_chats"?"id,cino,provider":"id";
           let existing=[],offset=0,page=[];
           do{page=await sbReq("GET",table+"?select="+select+"&limit=500&offset="+offset);if(!Array.isArray(page))page=[];existing.push(...page);offset+=page.length;}while(page.length===500&&offset<10000);
-          const ids=new Set(existing.map(row=>String(row.id)));
-          const natural=new Set(existing.map(row=>keyFor(table,row)).filter(Boolean));
-          const fresh=rows.filter(row=>{
-            const naturalKey=keyFor(table,row);
-            const duplicate=ids.has(String(row.id))||(naturalKey&&natural.has(naturalKey));
-            if(duplicate){skippedTotal++;return false;}
-            if(table==="cases"&&row.latest_order_document_id&&backupDocIds.has(String(row.latest_order_document_id))){caseLinks.push({id:row.id,document_id:row.latest_order_document_id});row.latest_order_document_id=null;}
-            return true;
-          });
+          const byId=new Map(existing.map(row=>[String(row.id),row]));
+          const ids=new Set(byId.keys());
+          const natural=new Map();
+          for(const row of existing){const k=keyFor(table,row);if(k&&!natural.has(k))natural.set(k,row);}
+          const fresh=[];
+          for(const row of rows){
+            const idKey=String(row.id),naturalKey=keyFor(table,row);
+            if(table==="documents"){
+              const sameId=byId.get(idKey);
+              if(sameId){
+                if(!row.fingerprint||!sameId.fingerprint||row.fingerprint===sameId.fingerprint)documentIdMap.set(idKey,idKey);
+                else if(naturalKey&&natural.has(naturalKey))documentIdMap.set(idKey,String(natural.get(naturalKey).id));
+                else documentIdMap.set(idKey,null);
+                skippedTotal++;continue;
+              }
+              if(naturalKey&&natural.has(naturalKey)){
+                documentIdMap.set(idKey,String(natural.get(naturalKey).id));skippedTotal++;continue;
+              }
+              documentIdMap.set(idKey,idKey);
+            }else if(ids.has(idKey)||(naturalKey&&natural.has(naturalKey))){
+              skippedTotal++;continue;
+            }
+            ids.add(idKey);if(naturalKey)natural.set(naturalKey,row);
+            if(table==="cases"&&row.latest_order_document_id){
+              row.latest_order_document_id=documentIdMap.get(String(row.latest_order_document_id))||null;
+            }
+            fresh.push(row);
+          }
           for(let i=0;i<fresh.length;i+=75){
             const chunk=fresh.slice(i,i+75);
             const inserted=await sbReq("POST",table,chunk,"return=representation,resolution=ignore-duplicates");
             insertedTotal+=Array.isArray(inserted)?inserted.length:0;
           }
-        }
-        for(const link of caseLinks){
-          const updated=await sbReq("PATCH","cases?id=eq."+encodeURIComponent(link.id),{latest_order_document_id:link.document_id});
-          if(!Array.isArray(updated)||!updated.length)console.warn("Could not restore document link for case",link.id);
         }
         await loadAll();setOfficeRefresh(x=>x+1);
         await logActivity(null,"backup_restored","Added missing records from Mercury backup",{inserted:insertedTotal,skipped_existing:skippedTotal,backup_created_at:backup.created_at||null});
