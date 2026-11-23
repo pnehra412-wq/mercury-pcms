@@ -25,4 +25,13 @@ assert(fs.readFileSync(migration,"utf8").includes("default auth.uid()"),"Owner d
 const realtimeMigration="supabase/migrations/20261123100301_enable_mercury_realtime_sync.sql";
 assert(fs.existsSync(realtimeMigration),"Realtime publication migration missing");
 assert(fs.readFileSync(realtimeMigration,"utf8").includes("alter publication supabase_realtime add table public.cases"),"Realtime migration does not publish case changes");
+const config=fs.readFileSync("supabase/config.toml","utf8");
+for(const slug of ["capture-mobile-order","capture-shared-court-order","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(config.includes("[functions."+slug+"]\\nverify_jwt = true"),"JWT verification config missing for "+slug);
+const edgeSource=slug=>fs.readFileSync("supabase/functions/"+slug+"/index.ts","utf8");
+for(const slug of ["capture-mobile-order","mercury-office","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(!edgeSource(slug).includes("bc8bbb9e-3549-4d98-acd0-e25a2db65740"),"Hardcoded account identifier remains in "+slug);
+assert(edgeSource("capture-mobile-order").includes("auth.getUser(jwt)"),"Court capture must verify the session");
+assert(edgeSource("mercury-capture").includes("signInWithPassword"),"Capture PWA must authenticate before upload");
+assert(edgeSource("mercury-app").includes("icon.svg"),"App serving function must expose the PWA icon");
+assert(edgeSource("case-ai-chats").includes('.eq("user_id",userId)'),"Case AI chats must be owner-scoped");
+assert(edgeSource("mercury-notion-sync").includes("workspaceOwnerId"),"Notion sync must derive the workspace owner");
 console.log("Mercury main-branch validation passed: JSX, Auth, private Storage uploads, PWA files, and migration.");
