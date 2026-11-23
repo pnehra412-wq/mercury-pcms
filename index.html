@@ -1630,7 +1630,7 @@ function MercuryPCMS() {
               <div key={tk.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"flex-start"}}>
                 <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={()=>toggleTask(tk,true)}/>
                 <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:500}}>{tk.title}</div>{c&&<div style={{fontSize:11,color:"var(--gold)",marginTop:1,cursor:"pointer"}} onClick={()=>openCase(c)}>{partyLabel(c)}</div>}<div style={{fontSize:11,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                <button onClick={()=>deleteTask(tk)} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
               </div>
             );})}
           </Card>
