@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-secure-auth-v3"/>
+<meta name="mercury-build" content="2026-11-23-secure-private-docs-v4"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -248,6 +248,9 @@ function MercuryPCMS() {
   const [authBusy,setAuthBusy]=useState(false);
   const [authError,setAuthError]=useState("");
   const [authNotice,setAuthNotice]=useState("");
+  const [passwordRecovery,setPasswordRecovery]=useState(false);
+  const [newPassword,setNewPassword]=useState("");
+  const [confirmPassword,setConfirmPassword]=useState("");
 
   const notify = (msg, color="var(--teal)") => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
 
@@ -260,7 +263,8 @@ function MercuryPCMS() {
       if(error)setAuthError(error.message);
       setAuthReady(true);
     });
-    const {data:{subscription}}=mercurySupabase.auth.onAuthStateChange((_event,nextSession)=>{
+    const {data:{subscription}}=mercurySupabase.auth.onAuthStateChange((event,nextSession)=>{
+      if(event==="PASSWORD_RECOVERY")setPasswordRecovery(true);
       mercuryAccessToken=nextSession?.access_token||null;
       setSession(nextSession||null);
       setAuthReady(true);
@@ -281,7 +285,8 @@ function MercuryPCMS() {
     catch(error){setAuthError(error.message||"Could not request a password reset.");}
     finally{setAuthBusy(false);}
   };
-  const handleSignOut=async()=>{setAuthBusy(true);try{const {error}=await mercurySupabase.auth.signOut();if(error)throw error;mercuryAccessToken=null;setSession(null);setCases([]);setTasks([]);setFees([]);setHistory([]);setDetail(null);}catch(error){notify("Sign-out failed: "+error.message,"var(--rose)");}finally{setAuthBusy(false);}};
+  const handlePasswordUpdate=async e=>{e.preventDefault();setAuthError("");setAuthNotice("");if(newPassword.length<8){setAuthError("Use at least 8 characters for the new password.");return;}if(newPassword!==confirmPassword){setAuthError("The two passwords do not match.");return;}setAuthBusy(true);try{const {error}=await mercurySupabase.auth.updateUser({password:newPassword});if(error)throw error;setPasswordRecovery(false);setNewPassword("");setConfirmPassword("");setAuthNotice("Password updated successfully.");}catch(error){setAuthError(error.message||"Could not update password.");}finally{setAuthBusy(false);}};
+  const handleSignOut=async()=>{setAuthBusy(true);try{const {error}=await mercurySupabase.auth.signOut();if(error)throw error;mercuryAccessToken=null;setSession(null);setCases([]);setTasks([]);setFees([]);setHistory([]);setDetail(null);setPasswordRecovery(false);}catch(error){notify("Sign-out failed: "+error.message,"var(--rose)");}finally{setAuthBusy(false);}};
 
   const loadAll = async () => {
     setLoading(true);
@@ -1522,6 +1527,7 @@ function MercuryPCMS() {
 
   // ── LAYOUT ───────────────────────────────────────────────────────────────
   if(!authReady) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#141b27",color:"#e8c96a",fontFamily:"DM Sans,sans-serif"}}><div style={{textAlign:"center"}}><div style={{fontSize:28,marginBottom:10}}>⚖</div><div style={{fontWeight:700}}>Mercury PCMS</div><div style={{fontSize:12,color:"#9aa9ba",marginTop:8}}>Checking secure session…</div></div></div>;
+  if(passwordRecovery&&session) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:18,background:"linear-gradient(135deg,#101722,#23364b)",fontFamily:"DM Sans,sans-serif"}}><div style={{width:"100%",maxWidth:420,background:"#fff",borderRadius:16,padding:28,boxShadow:"0 18px 60px rgba(0,0,0,.28)"}}><div style={{fontFamily:"Playfair Display,serif",fontSize:23,fontWeight:900,color:"#141b27",marginBottom:8}}>Set a new password</div><div style={{fontSize:12,color:"#64748b",marginBottom:18}}>Choose a new password for your Mercury account.</div><form onSubmit={handlePasswordUpdate} style={{display:"grid",gap:12}}><input type="password" required minLength={8} autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" style={{width:"100%",padding:"11px 12px",border:"1px solid #cbd5e1",borderRadius:8,fontSize:14}}/><input type="password" required minLength={8} autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Confirm new password" style={{width:"100%",padding:"11px 12px",border:"1px solid #cbd5e1",borderRadius:8,fontSize:14}}/><button disabled={authBusy} type="submit" style={{padding:12,border:0,borderRadius:8,background:"#c9a84c",color:"#141b27",fontWeight:800,cursor:"pointer"}}>{authBusy?"Updating…":"Update password"}</button></form>{authError&&<div role="alert" style={{marginTop:12,padding:10,borderRadius:7,background:"#fff1f0",color:"#b42318",fontSize:12}}>{authError}</div>}<button type="button" onClick={handleSignOut} style={{display:"block",margin:"14px auto 0",border:0,background:"transparent",color:"#1d4ed8",fontSize:12,fontWeight:600,cursor:"pointer"}}>Cancel and sign out</button></div></div>;
   if(!session) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:18,background:"linear-gradient(135deg,#101722,#23364b)",fontFamily:"DM Sans,sans-serif"}}><div style={{width:"100%",maxWidth:420,background:"#fff",borderRadius:16,padding:28,boxShadow:"0 18px 60px rgba(0,0,0,.28)"}}><div style={{textAlign:"center",marginBottom:22}}><div style={{width:58,height:58,borderRadius:16,margin:"0 auto 12px",background:"#141b27",color:"#e8c96a",display:"grid",placeItems:"center",fontSize:27}}>⚖</div><div style={{fontFamily:"Playfair Display,serif",fontSize:25,fontWeight:900,color:"#141b27"}}>Mercury PCMS</div><div style={{fontSize:12,color:"#64748b",marginTop:5}}>Secure advocate workspace</div></div><form onSubmit={handleSignIn} style={{display:"grid",gap:12}}><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#475569",marginBottom:5}}>ACCOUNT EMAIL</label><input type="email" required autoComplete="username" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Enter your account email" style={{width:"100%",padding:"11px 12px",border:"1px solid #cbd5e1",borderRadius:8,fontSize:14}}/></div><div><label style={{display:"block",fontSize:11,fontWeight:700,color:"#475569",marginBottom:5}}>PASSWORD</label><input type="password" required autoComplete="current-password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Enter your password" style={{width:"100%",padding:"11px 12px",border:"1px solid #cbd5e1",borderRadius:8,fontSize:14}}/></div><button disabled={authBusy} type="submit" style={{marginTop:5,padding:12,border:0,borderRadius:8,background:"#c9a84c",color:"#141b27",fontWeight:800,cursor:authBusy?"wait":"pointer"}}>{authBusy?"Signing in…":"Sign in securely"}</button></form>{authError&&<div role="alert" style={{marginTop:12,padding:10,borderRadius:7,background:"#fff1f0",color:"#b42318",fontSize:12}}>{authError}</div>}{authNotice&&<div role="status" style={{marginTop:12,padding:10,borderRadius:7,background:"#ecfdf3",color:"#067647",fontSize:12}}>{authNotice}</div>}<button type="button" disabled={authBusy} onClick={sendPasswordReset} style={{display:"block",margin:"14px auto 0",border:0,background:"transparent",color:"#1d4ed8",fontSize:12,fontWeight:600,cursor:"pointer"}}>Forgot password?</button><div style={{textAlign:"center",fontSize:10,color:"#94a3b8",marginTop:18}}>Access is restricted to your authorised Mercury account.</div></div></div>;
 
   return (
