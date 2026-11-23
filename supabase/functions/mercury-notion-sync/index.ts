@@ -36,14 +36,15 @@ Deno.serve(async (req: Request) => {
   if (!supabaseUrl || !serviceKey) return json({ error: "Missing server configuration." }, 500);
   const bearer = req.headers.get("Authorization") || "";
   const jwt = bearer.replace(/^Bearer\s+/i, "");
+  let workspaceOwnerId="";
   try {
     const part = jwt.split(".")[1];
     if (!part) return json({ error: "Authentication required" }, 401);
     const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
     const ownerResponse=await fetch(`${supabaseUrl}/rest/v1/cases?select=user_id&limit=1`,{headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`}});
     if(!ownerResponse.ok)return json({error:"Could not verify Mercury workspace owner."},503);
-    const ownerRows=await ownerResponse.json();
-    if(!ownerRows?.[0]?.user_id||payload.sub!==ownerRows[0].user_id)return json({error:"Not authorized for this single-user Mercury workspace"},403);
+    const ownerRows=await ownerResponse.json();workspaceOwnerId=ownerRows?.[0]?.user_id||"";
+    if(!workspaceOwnerId||payload.sub!==workspaceOwnerId)return json({error:"Not authorized for this single-user Mercury workspace"},403);
   } catch { return json({ error: "Invalid authentication token" }, 401); }
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
   try {
@@ -55,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const action = body.action === "sync" ? "sync" : "preview";
     const afterId = Number.isFinite(Number(body.after_id)) ? Number(body.after_id) : 0;
 
-    const sb = await fetch(`${supabaseUrl}/rest/v1/cases?select=id,cino,type_name,petparty_name,resparty_name,establishment_name,district_name,date_next_list,court_no_desg_name,purpose_name,case_status&case_status=eq.Pending&id=gt.${afterId}&order=id.asc&limit=1000`, {
+    const sb = await fetch(`${supabaseUrl}/rest/v1/cases?select=id,cino,type_name,petparty_name,resparty_name,establishment_name,district_name,date_next_list,court_no_desg_name,purpose_name,case_status&case_status=eq.Pending&user_id=eq.${encodeURIComponent(workspaceOwnerId)}&id=gt.${afterId}&order=id.asc&limit=1000`, {
       headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` },
     });
     if (!sb.ok) throw new Error(`Supabase query failed: ${sb.status} ${(await sb.text()).slice(0, 300)}`);
