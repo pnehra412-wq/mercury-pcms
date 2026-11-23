@@ -1,0 +1,1 @@
+Authenticated case chat-link endpoint. JWT verification is enabled; owner identity is derived from the existing cases table; all reads and writes are scoped to the authenticated owner. The GitHub Pages origin is included in CORS.
