@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v7"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v8"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -873,6 +873,15 @@ function MercuryPCMS() {
       };
       load();
     },[c.cino]);
+
+    useEffect(()=>{
+      const reloadDocs=async()=>{try{const res=await sbReq("GET",`documents?cino=eq.${encodeURIComponent(c.cino)}&select=*&order=uploaded_at.desc`);if(Array.isArray(res))setCaseDocs(res);}catch(error){console.warn("Live document refresh failed",error);}};
+      const channel=authClient.channel("mercury-case-detail-"+c.cino)
+        .on("postgres_changes",{event:"*",schema:"public",table:"documents",filter:"cino=eq."+c.cino},reloadDocs)
+        .on("postgres_changes",{event:"*",schema:"public",table:"case_ai_chats",filter:"cino=eq."+c.cino},()=>{if(activeTab==="ai")loadChatLinks();})
+        .subscribe();
+      return ()=>{authClient.removeChannel(channel);};
+    },[c.cino,activeTab]);
 
     useEffect(()=>{ setSelectedDocIds([]); },[c.cino]);
 
