@@ -351,7 +351,7 @@ function MercuryPCMS() {
   const deleteTask=async tk=>{if(!window.confirm("Delete this task? This cannot be undone."))return;try{const res=await sb.from("tasks").delete({id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was deleted.");setTasks(ts=>ts.filter(x=>x.id!==tk.id));await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});notify("Task deleted","var(--amber)");}catch(error){notify("Task deletion failed: "+error.message,"var(--rose)");}};
   const normaliseECourtsRecord=raw=>{
     const text=value=>value===null||value===undefined?null:String(value).trim()||null;
-    const date=value=>{const v=text(value);if(!v||v==="0"||v==="0000-00-00")return null;if(/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return v;const m=v.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):null;};
+    const date=value=>{const v=text(value);if(!v||v==="0"||v==="0000-00-00")return null;if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;const m=v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):null;};
     const integer=value=>{if(value===null||value===undefined||String(value).trim()==="")return null;const n=Number(value);return Number.isInteger(n)?n:null;};
     const fields={type_name:"type_name",case_no:"case_no",reg_year:"reg_year",reg_no:"reg_no",fil_year:"fil_year",fil_no:"fil_no",fil_type_name:"fil_type_name",petparty_name:"petparty_name",resparty_name:"resparty_name",establishment_name:"establishment_name",establishment_code:"establishment_code",state_code:"state_code",district_code:"district_code",state_name:"state_name",district_name:"district_name",date_next_list:"date_next_list",date_of_decision:"date_of_decision",date_last_list:"date_last_list",court_no_desg_name:"court_no_desg_name",ltype_name:"ltype_name",lpetparty_name:"lpetparty_name",lresparty_name:"lresparty_name",lestablishment_name:"lestablishment_name",lstate_name:"lstate_name",ldistrict_name:"ldistrict_name",lcourt_no_desg_name:"lcourt_no_desg_name",disp_name:"disp_name",ldisp_name:"ldisp_name",purpose_name:"purpose_name",lpurpose_name:"lpurpose_name"};
     const out={cino:String(raw.cino||"").trim().toUpperCase()};
@@ -367,7 +367,7 @@ function MercuryPCMS() {
     const file=event.target.files?.[0];if(!file)return;setEcourtsBusy(true);
     try{
       const source=await file.text();let parsed;
-      try{parsed=JSON.parse(source);}catch{parsed=source.trim().split(/\\r?\\n/).filter(Boolean).map(line=>JSON.parse(line));}
+      try{parsed=JSON.parse(source);}catch{parsed=source.trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));}
       let raw=Array.isArray(parsed)?parsed:Array.isArray(parsed?.cases)?parsed.cases:Array.isArray(parsed?.data)?parsed.data:[];
       raw=raw.map(item=>typeof item==="string"?JSON.parse(item):item).filter(item=>item&&typeof item==="object");
       const byCino=new Map();let invalid=0,duplicates=0;
