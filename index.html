@@ -130,7 +130,8 @@ const sb = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
-const TODAY = new Date().toISOString().slice(0,10);
+const localDateKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const TODAY = localDateKey();
 const todayDt = new Date(TODAY+"T00:00:00");
 const daysUntil = d => Math.round((new Date(d+"T00:00:00")-todayDt)/86400000);
 const fmt = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
@@ -281,7 +282,7 @@ function MercuryPCMS() {
   useEffect(()=>{
     if(!notificationsEnabled||!("Notification" in window)||Notification.permission!=="granted")return;
     const sendDueReminders=()=>{
-      const todayKey=new Date().toISOString().slice(0,10);
+      const todayKey=localDateKey();
       hearingReminders.forEach(c=>{
         const key="mercury-hearing-"+c.cino+"-"+c.date_next_list+"-"+todayKey;
         if(localStorage.getItem(key))return;
@@ -1245,38 +1246,76 @@ function MercuryPCMS() {
 
   // ── TASKS ────────────────────────────────────────────────────────────────
   const TasksView = () => {
-    const pend=tasks.filter(t=>!t.done);const done=tasks.filter(t=>t.done);
+    const [taskFilter,setTaskFilter]=useState("All");
+    const pend=tasks.filter(t=>!t.done);
+    const done=tasks.filter(t=>t.done);
+    const taskDays=t=>t.due?daysUntil(t.due):999;
+    const overdueTasks=pend.filter(t=>taskDays(t)<0);
+    const todayTasks=pend.filter(t=>taskDays(t)===0);
+    const upcomingTasks=pend.filter(t=>taskDays(t)>0);
+    const visibleTasks=taskFilter==="Overdue"?overdueTasks:taskFilter==="Today"?todayTasks:taskFilter==="Upcoming"?upcomingTasks:pend;
+    const taskStatus=t=>{
+      const d=taskDays(t);
+      if(!t.due)return {label:"NO DUE DATE",color:"#64748b",bg:"#64748b12"};
+      if(d<0)return {label:"OVERDUE · "+Math.abs(d)+"d",color:"#b42318",bg:"#fff1f0"};
+      if(d===0)return {label:"DUE TODAY",color:"#b42318",bg:"#fff1f0"};
+      if(d<=3)return {label:"DUE IN "+d+"d",color:"#a15c00",bg:"#fff8e8"};
+      return {label:"UPCOMING · "+fmt(t.due),color:"#175a91",bg:"#eef6ff"};
+    };
+    const toggleDone=async(tk,next)=>{
+      const res=await sb.from("tasks").update({done:next},{id:tk.id});
+      setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));
+      notify(next?"Task marked complete":"Task reopened");
+    };
+    const deleteTask=async tk=>{
+      if(!window.confirm("Delete this task? This cannot be undone."))return;
+      await sb.from("tasks").delete({id:tk.id});
+      setTasks(ts=>ts.filter(x=>x.id!==tk.id));
+      notify("Task deleted","var(--amber)");
+    };
+    const TaskRow=({tk,completed=false})=>{
+      const c=cases.find(x=>x.cino===tk.cino);
+      const status=taskStatus(tk);
+      return <div key={tk.id} style={{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:9,alignItems:"flex-start",background:!completed&&taskDays(tk)<=0?"#fffdfc":"#fff",opacity:completed?.62:1}}>
+        <button aria-label={completed?"Reopen task":"Mark task complete"} onClick={()=>toggleDone(tk,!completed)} style={{width:19,height:19,borderRadius:5,border:completed?"1px solid var(--teal)":"2px solid #94a3b8",background:completed?"var(--teal)":"#fff",color:"#fff",cursor:"pointer",flexShrink:0,marginTop:1,display:"flex",alignItems:"center",justifyContent:"center"}}>{completed?<Ic n="check" size={12} color="#fff"/>:null}</button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:12.5,fontWeight:650,textDecoration:completed?"line-through":"none",color:"var(--ink)"}}>{tk.title||"Untitled task"}</span>
+            {!completed&&<Bdg label={status.label} color={status.color} bg={status.bg}/>}
+            {tk.priority&&<Bdg label={String(tk.priority).toUpperCase()} color={tk.priority==="High"?"#b42318":tk.priority==="Low"?"#64748b":"#175a91"}/>}
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:4,fontSize:10.5,color:"var(--silver)"}}>
+            <span>{tk.due?"Due "+fmt(tk.due):"No due date"}</span>
+            {c&&<button onClick={()=>openCase(c)} style={{border:0,padding:0,background:"transparent",color:"var(--gold)",fontSize:10.5,cursor:"pointer",textAlign:"left"}}>{partyLabel(c)}</button>}
+            {tk.cino&&!c&&<span className="mono">{tk.cino}</span>}
+          </div>
+        </div>
+        <button aria-label="Delete task" onClick={()=>deleteTask(tk)} style={{border:0,background:"transparent",cursor:"pointer",padding:3}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+      </div>;
+    };
     return (
-      <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
-        <div style={{display:"flex",alignItems:"center"}}>
-          <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Tasks & Reminders</h2>
+      <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%",minHeight:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Tasks & Reminders</h2><div style={{fontSize:10.5,color:"var(--silver)",marginTop:2}}>Track filing work, deadlines and case-linked follow-ups</div></div>
           <Btn style={{marginLeft:"auto"}} onClick={()=>setAddTask("__free__")}><Ic n="plus" size={14}/>New Task</Btn>
         </div>
-        <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignContent:"start"}}>
-          <Card p={0} style={{overflow:"hidden",alignSelf:"start"}}>
-            <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",fontWeight:600,fontSize:13,display:"flex",gap:7,alignItems:"center"}}><Ic n="alert" size={13} color="var(--rose)"/>Pending ({pend.length})</div>
-            {pend.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>All caught up! ✅</div>}
-            {pend.map(tk=>{const c=cases.find(x=>x.cino===tk.cino);return(
-              <div key={tk.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"flex-start"}}>
-                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={async()=>{await sb.from("tasks").update({done:true},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:true}:x));}}/>
-                <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:500}}>{tk.title}</div>{c&&<div style={{fontSize:11,color:"var(--gold)",marginTop:1,cursor:"pointer"}} onClick={()=>openCase(c)}>{partyLabel(c)}</div>}<div style={{fontSize:11,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
-              </div>
-            );})}
-          </Card>
-          <Card p={0} style={{overflow:"hidden",alignSelf:"start"}}>
-            <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",fontWeight:600,fontSize:13,display:"flex",gap:7,alignItems:"center"}}><Ic n="check" size={13} color="var(--teal)"/>Done ({done.length})</div>
-            {done.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>No completed tasks</div>}
-            {done.map(tk=>(
-              <div key={tk.id} style={{padding:"9px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"center",opacity:0.55}}>
-                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={async()=>{await sb.from("tasks").update({done:false},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:false}:x));}}>
-                  <Ic n="check" size={10} color="white"/>
-                </div>
-                <div style={{flex:1,fontSize:12.5,textDecoration:"line-through"}}>{tk.title}</div>
-              </div>
-            ))}
-          </Card>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+          {[["OVERDUE",overdueTasks.length,"#b42318"],["DUE TODAY",todayTasks.length,"#a15c00"],["UPCOMING",upcomingTasks.length,"#175a91"],["COMPLETED",done.length,"#16805d"]].map(([label,count,color])=><div key={label} style={{background:"#fff",border:"1px solid var(--border)",borderRadius:8,padding:"9px 11px"}}><div style={{fontSize:9,fontWeight:800,color:"#64748b",letterSpacing:".06em"}}>{label}</div><div style={{fontSize:20,fontWeight:800,color,marginTop:2}}>{count}</div></div>)}
         </div>
+        <Card p={0} style={{overflow:"hidden",display:"flex",flexDirection:"column",minHeight:0,flex:1}}>
+          <div style={{padding:"9px 12px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+            {["All","Overdue","Today","Upcoming"].map(f=><button key={f} onClick={()=>setTaskFilter(f)} style={{border:"1px solid "+(taskFilter===f?"#173b63":"var(--border)"),background:taskFilter===f?"#173b63":"#fff",color:taskFilter===f?"#fff":"var(--ink3)",borderRadius:6,padding:"5px 9px",fontSize:10.5,fontWeight:650,cursor:"pointer"}}>{f}{f==="All"?" ("+pend.length+")":f==="Overdue"?" ("+overdueTasks.length+")":f==="Today"?" ("+todayTasks.length+")":" ("+upcomingTasks.length+")"}</button>)}
+            <span style={{marginLeft:"auto",fontSize:10,color:"var(--silver)"}}>{visibleTasks.length} task{visibleTasks.length===1?"":"s"}</span>
+          </div>
+          <div style={{overflowY:"auto",flex:1}}>
+            {visibleTasks.length===0&&<div style={{padding:28,textAlign:"center",color:"var(--silver)",fontSize:12}}>{taskFilter==="All"?"No pending tasks. Add a task to track your next step.":"No tasks in this category."}</div>}
+            {visibleTasks.slice().sort((a,b)=>taskDays(a)-taskDays(b)).map(tk=><TaskRow key={tk.id} tk={tk}/>)}
+            {done.length>0&&<details style={{borderTop:"1px solid var(--border)"}}>
+              <summary style={{padding:"11px 14px",fontSize:11.5,fontWeight:700,color:"var(--teal)",cursor:"pointer"}}>Completed tasks ({done.length})</summary>
+              {done.slice().reverse().map(tk=><TaskRow key={tk.id} tk={tk} completed/>)}
+            </details>}
+          </div>
+        </Card>
       </div>
     );
   };
