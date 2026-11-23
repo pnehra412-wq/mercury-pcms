@@ -49,3 +49,7 @@ The existing backup restore path previously used merge-upsert semantics, which c
 
 ## Full backup including private documents
 The workspace backup now produces a ZIP containing the complete table export, a storage manifest, and the actual bytes of every object in the private case-files bucket. Restore accepts both older JSON-only backups and the new ZIP format. ZIP restore adds missing database rows only, uploads missing private files with upsert disabled, and skips files already present; it never overwrites an existing object. Existing records and file objects are preserved. The UI clearly distinguishes ZIP backups (records + file bytes) from legacy JSON backups (records only).
+
+
+## Live Windows–Android synchronization
+The Supabase Realtime publication now includes the 13 user-owned Mercury tables used by cases, tasks, fees, hearing history/reminders, documents, analysis, court watch, activity, notes, issues, contacts and AI chats. The main app subscribes to authenticated Postgres change events and quietly refreshes the workspace after a short debounce, with a Live sync status indicator. This keeps signed-in Windows and Android clients current without requiring a manual reload. The existing RLS owner policies remain in force for subscribers. This is live row-change synchronization, not a replacement for offline editing or push notifications while the app is closed.
