@@ -1231,7 +1231,7 @@ function MercuryPCMS() {
                 {hearings.map((c,i)=>{const t=tm(c.type_name);return(
                   <div key={c.cino} style={{padding:"9px 14px",borderBottom:i<hearings.length-1?"1px solid var(--border)":"none",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}
                     onClick={()=>openCase(c)} onMouseEnter={e=>e.currentTarget.style.background="var(--paper)"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:1}}>{c.court_no_desg_name} · {c.establishment_name}</div></div>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{partyLabel(c)}</div><div style={{fontSize:10.5,color:"var(--silver)",marginTop:1}}>{c.court_no_desg_name} · {c.establishment_name}</div><div className="mono" style={{fontSize:9,color:"#64748b",marginTop:3}}>{c.cino}</div></div>
                     <Bdg label={t.label} color={t.color}/><Bdg label={c.purpose_name} color={pcColor(c.purpose_name)}/>
                   </div>
                 );})}
@@ -1276,7 +1276,7 @@ function MercuryPCMS() {
     const TaskRow=({tk,completed=false})=>{
       const c=cases.find(x=>x.cino===tk.cino);
       const status=taskStatus(tk);
-      return <div key={tk.id} style={{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:9,alignItems:"flex-start",background:!completed&&taskDays(tk)<=0?"#fffdfc":"#fff",opacity:completed?.62:1}}>
+      return <div key={tk.id} style={{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:9,alignItems:"flex-start",background:!completed&&taskDays(tk)<=0?"#fffdfc":"#fff",opacity:completed ? 0.62 : 1}}>
         <button aria-label={completed?"Reopen task":"Mark task complete"} onClick={()=>toggleDone(tk,!completed)} style={{width:19,height:19,borderRadius:5,border:completed?"1px solid var(--teal)":"2px solid #94a3b8",background:completed?"var(--teal)":"#fff",color:"#fff",cursor:"pointer",flexShrink:0,marginTop:1,display:"flex",alignItems:"center",justifyContent:"center"}}>{completed?<Ic n="check" size={12} color="#fff"/>:null}</button>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
