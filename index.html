@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v9"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v10"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -630,6 +630,7 @@ function MercuryPCMS() {
   // ── CASES ────────────────────────────────────────────────────────────────
   const CasesView = () => (
     <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
+      <input ref={ecourtsFileRef} type="file" accept=".txt,.json,application/json,text/plain" style={{display:"none"}} onChange={handleECourtsFile}/>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="overdue"?"Overdue Work":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
         <div style={{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -637,6 +638,7 @@ function MercuryPCMS() {
           <Btn sm v="ghost" onClick={()=>setView("board")}><Ic n="columns" size={12}/>Board</Btn>
           <Btn sm v="ghost" onClick={()=>setView("calendar")}><Ic n="cal" size={12}/>Calendar</Btn>
           <Btn sm v="ghost" onClick={()=>{const rows=filtered.map(c=>({"CNR":c.cino||"","Case":partyLabel(c),"Court":c.court_no_desg_name||"","District":c.district_name||"","Case Type":c.type_name||"","Status":c.case_status||"","Next Hearing":c.date_next_list||"","Purpose":c.purpose_name||"","Notes":c.notes_adv||c.note||""}));if(!downloadCsv("mercury-case-registry.csv",rows))notify("No cases to export","var(--amber)");}}><Ic n="save" size={12}/>Export</Btn>
+          <Btn sm v="ghost" onClick={()=>ecourtsFileRef.current?.click()}><Ic n="upload" size={12}/>Import eCourts</Btn>
           <Btn onClick={()=>setAddCase(true)}><Ic n="plus" size={13}/>Add Case</Btn>
         </div>
       </div>
@@ -2116,6 +2118,25 @@ function MercuryPCMS() {
       {addTask&&<AddTaskModal/>}
       {addFee&&<AddFeeModal/>}
       {addCase&&<AddCaseModal/>}
+      {ecourtsPreview&&<div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.55)",zIndex:420,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>{if(e.target===e.currentTarget&&!ecourtsBusy)setEcourtsPreview(null);}}>
+        <div className="fade-up" style={{width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",background:"var(--white)",borderRadius:14,padding:22,boxShadow:"0 24px 80px #0005"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
+            <div><div style={{fontSize:9,fontWeight:800,letterSpacing:1.2,color:"var(--gold)"}}>MERCURY DATA SYNC</div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,margin:"3px 0"}}>eCourts import preview</h2><div style={{fontSize:11,color:"var(--silver)"}}>{ecourtsPreview.fileName}</div></div>
+            <button onClick={()=>!ecourtsBusy&&setEcourtsPreview(null)} style={{border:0,background:"transparent",fontSize:22,cursor:"pointer",color:"var(--silver)"}}>×</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"18px 0"}}>
+            {[["Records",ecourtsPreview.total],["Valid CNRs",ecourtsPreview.valid],["Existing to update",ecourtsPreview.existingCount],["New cases",ecourtsPreview.newCount],["Disposed",ecourtsPreview.disposed],["Invalid / duplicate",ecourtsPreview.invalid+ecourtsPreview.duplicates]].map(([label,value])=><div key={label} style={{padding:12,border:"1px solid var(--border)",borderRadius:9,background:"var(--paper)"}}><div style={{fontSize:9,color:"var(--silver)",fontWeight:800,textTransform:"uppercase"}}>{label}</div><div style={{fontSize:22,fontWeight:800,color:"var(--ink)",marginTop:3}}>{value}</div></div>)}
+          </div>
+          <div style={{background:"#f7f0dc",border:"1px solid #e7d6a7",borderRadius:9,padding:13,fontSize:11.5,lineHeight:1.6,color:"#5d4b20"}}>
+            <strong>Manual data protection:</strong> Only eCourts-managed case fields will be updated. Client names/phone details, advocate notes, manual notes, fees, tasks, hearing history, latest-order analysis and documents will be preserved. Existing custom case statuses will not be changed; Pending/Disposed follows the eCourts status.
+          </div>
+          <div style={{fontSize:10.5,color:"var(--silver)",marginTop:12}}>The import is safe to repeat. Existing CNRs are updated; new CNRs are added. The original file is not changed.</div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}>
+            <Btn v="ghost" onClick={()=>!ecourtsBusy&&setEcourtsPreview(null)}>Cancel</Btn>
+            <button disabled={ecourtsBusy} onClick={applyECourtsImport} style={{border:0,borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:ecourtsBusy?"wait":"pointer",background:"var(--gold)",color:"var(--ink)",opacity:ecourtsBusy?0.65:1}}>{ecourtsBusy?"Importing…":"Apply safe import"}</button>
+          </div>
+        </div>
+      </div>}
 
 
       {/* Mobile navigation */}
