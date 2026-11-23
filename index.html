@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v11"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v12"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -637,7 +637,7 @@ function MercuryPCMS() {
           <Btn sm v="gold" onClick={()=>setView("cases")}><Ic n="list" size={12}/>List</Btn>
           <Btn sm v="ghost" onClick={()=>setView("board")}><Ic n="columns" size={12}/>Board</Btn>
           <Btn sm v="ghost" onClick={()=>setView("calendar")}><Ic n="cal" size={12}/>Calendar</Btn>
-          <Btn sm v="ghost" onClick={()=>{const rows=filtered.map(c=>({"CNR":c.cino||"","Case":partyLabel(c),"Court":c.court_no_desg_name||"","District":c.district_name||"","Case Type":c.type_name||"","Status":c.case_status||"","Next Hearing":c.date_next_list||"","Purpose":c.purpose_name||"","Notes":c.notes_adv||c.note||""}));if(!downloadCsv("mercury-case-registry.csv",rows))notify("No cases to export","var(--amber)");}}><Ic n="save" size={12}/>Export</Btn>
+          <Btn sm v="ghost" onClick={()=>{const rows=filtered.map(c=>({"CNR":c.cino||"","Case":partyLabel(c),"Case No":c.case_no||"","Registration":c.reg_no?(String(c.reg_no)+"/"+(c.reg_year||"")):"","Court":c.court_no_desg_name||"","District":c.district_name||"","Case Type":c.type_name||"","Status":c.case_status||"","eCourts Status":c.ecourts_status||"","Next Hearing":c.date_next_list||"","Decision Date":c.date_of_decision||"","Disposition":c.disp_name||"","Purpose":c.purpose_name||"","Notes":c.notes_adv||c.note||""}));if(!downloadCsv("mercury-case-registry.csv",rows))notify("No cases to export","var(--amber)");}}><Ic n="save" size={12}/>Export</Btn>
           <Btn sm v="ghost" onClick={()=>ecourtsFileRef.current?.click()}><Ic n="upload" size={12}/>Import eCourts</Btn>
           <Btn onClick={()=>setAddCase(true)}><Ic n="plus" size={13}/>Add Case</Btn>
         </div>
@@ -1166,6 +1166,14 @@ function MercuryPCMS() {
                 {[["Court",c.court_no_desg_name],["Establishment",c.establishment_name],["District",c.district_name],["Type",t.label],["Purpose",c.purpose_name],["Next Hearing",fmt(c.date_next_list)]].map(([k,v])=>(
                   <div key={k} style={{background:"var(--paper)",borderRadius:7,padding:"9px 11px",border:"1px solid var(--border)"}}><Lbl c={k}/><div style={{fontSize:12,fontWeight:500,lineHeight:1.4}}>{v}</div></div>
                 ))}
+                {(c.case_no||c.reg_no||c.date_of_decision||c.disp_name||c.ecourts_last_synced_at)&&<div style={{gridColumn:"1/-1",background:"#f7f9fc",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:9}}><Lbl c="eCourts Registry Details"/><span style={{fontSize:9,fontWeight:800,color:c.ecourts_status==="Disposed"?"var(--rose)":"var(--teal)"}}>{c.ecourts_status||"Synced"}</span></div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:9}}>
+                    {[["Case No.",c.case_no],["Registration",c.reg_no?(String(c.reg_no)+"/"+(c.reg_year||"")):""],["Filing No.",c.fil_no],["Decision Date",fmt(c.date_of_decision)],["Last Listed",fmt(c.date_last_list)],["Disposition",c.disp_name],["Previous Type",c.ltype_name],["Previous Court",c.lcourt_no_desg_name]].map(([k,v])=><div key={k}><Lbl c={k}/><div style={{fontSize:11.5,fontWeight:600,lineHeight:1.4,wordBreak:"break-word"}}>{v||"—"}</div></div>)}
+                  </div>
+                  {c.ecourts_note&&<div style={{marginTop:8,fontSize:11,color:"var(--ink3)"}}><Lbl c="eCourts note"/>{c.ecourts_note}</div>}
+                  {c.ecourts_last_synced_at&&<div style={{fontSize:9.5,color:"var(--silver)",marginTop:7}}>Last eCourts sync: {new Date(c.ecourts_last_synced_at).toLocaleString("en-IN")}</div>}
+                </div>}
                 {c.note&&<div style={{gridColumn:"1/-1",background:"#fffbef",border:"1px solid var(--gold)40",borderRadius:7,padding:"9px 11px"}}><Lbl c="Note"/><div style={{fontSize:12}}>★ {c.note}</div></div>}
                 <div style={{gridColumn:"1/-1",background:"var(--paper)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--border)"}}>
                   <Lbl c="Update Next Hearing Date"/>
