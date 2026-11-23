@@ -17,7 +17,7 @@ const manifest=JSON.parse(fs.readFileSync(manifestPath,"utf8"));
 assert(manifest.name&&manifest.short_name&&manifest.start_url&&manifest.display,"PWA manifest metadata incomplete");
 for(const icon of manifest.icons||[])assert(fs.existsSync(path.resolve(icon.src)),"PWA icon missing: "+icon.src);
 assert(fs.existsSync("sw.js"),"Service worker missing");
-for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\")","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted"])assert(html.includes(marker),"Expected feature missing: "+marker);
+for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\")","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted","window.JSZip","JSZip.loadAsync(file)","storage-manifest.json","storage/case-files/"])assert(html.includes(marker),"Expected feature missing: "+marker);
 assert(!html.includes("file_data:e.target.result"),"New documents must not be stored as inline base64");
 const migration="supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
 assert(fs.existsSync(migration),"Authenticated owner defaults migration missing");
