@@ -36,7 +36,10 @@ for (const [label, pattern] of [
   ["private case-file upload", /authClient\.storage\.from\("case-files"\)\.upload/],
   ["mobile Tasks navigation", /id:"tasks",icon:"task",label:"Tasks"/],
   ["mobile Fees navigation", /id:"fees",icon:"fee",label:"Fees"/],
-  ["PWA service worker registration", /navigator\.serviceWorker\.register/]
+  ["PWA service worker registration", /navigator\.serviceWorker\.register/],
+  ["backup restore ignores duplicate rows", /resolution=ignore-duplicates/],
+  ["backup restore preserves existing data", /will NOT be overwritten or deleted/],
+  ["backup document ID remapping", /documentIdMap/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
 console.log("Mercury PCMS checks passed: JSX parses; dashboard, diary, exports, reminders, document search, task filters, and drafting brief are present.");
