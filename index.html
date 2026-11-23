@@ -737,40 +737,47 @@ function MercuryPCMS() {
     };
 
     const handleUpload=async(files)=>{
-      const arr=Array.from(files);
-      if(!arr.length) return;
+      const arr=Array.from(files||[]);
+      if(!arr.length)return;
       setSaving(true);
-      notify("⏳ Uploading files…","var(--amber)");
-      let uploaded=0;
+      notify("Uploading to private case storage…","var(--amber)");
+      let uploaded=0;const failed=[];
       for(const file of arr){
-        // Store file as base64 in documents table (works without Supabase Storage bucket)
-        const reader=new FileReader();
-        await new Promise(resolve=>{
-          reader.onload=async(e)=>{
-            const base64=e.target.result;
-            const res=await sbReq("POST","documents",{
-              cino:c.cino,
-              name:file.name,
-              size:file.size,
-              mime_type:file.type,
-              file_data:base64,
-              doc_type:"general",
-              uploaded_at:new Date().toISOString()
-            });
-            if(Array.isArray(res)&&res.length>0){setCaseDocs(d=>[res[0],...d]);uploaded++;}
-            resolve();
-          };
-          reader.readAsDataURL(file);
-        });
+        let storagePath=null;
+        try{
+          if(file.size>25*1024*1024)throw new Error("File exceeds the 25 MB per-file limit.");
+          const safeName=String(file.name||"document").replace(/[^A-Za-z0-9._-]/g,"_").slice(0,140);
+          const safeCino=String(c.cino||"unlinked").replace(/[^A-Za-z0-9_-]/g,"_");
+          storagePath=String(session?.user?.id||"")+"/"+safeCino+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"_"+safeName;
+          const {error:uploadError}=await mercurySupabase.storage.from("case-files").upload(storagePath,file,{contentType:file.type||"application/octet-stream",upsert:false});
+          if(uploadError)throw uploadError;
+          const res=await sbChecked("POST","documents",{cino:c.cino,name:file.name,original_filename:file.name,size:file.size,mime_type:file.type||"application/octet-stream",storage_bucket:"case-files",storage_path:storagePath,doc_type:"general",document_category:"general",source:"Manual",source_app:"Mercury PCMS"});
+          if(!Array.isArray(res)||!res.length)throw new Error("Document metadata was not confirmed by the server.");
+          setCaseDocs(d=>[res[0],...d]);uploaded++;
+        }catch(error){
+          if(storagePath){const {error:cleanupError}=await mercurySupabase.storage.from("case-files").remove([storagePath]);if(cleanupError)console.error("Uploaded object cleanup failed",cleanupError);}
+          failed.push(String(file.name||"File")+": "+(error.message||"Upload failed"));
+        }
       }
-      notify(`✅ ${uploaded} file${uploaded>1?"s":""} uploaded permanently`,"var(--teal)");
       setSaving(false);
+      if(uploaded)notify(uploaded+" file"+(uploaded===1?"":"s")+" uploaded to private case storage","var(--teal)");
+      if(failed.length)notify(failed.length+" upload"+(failed.length===1?"":"s")+" failed. "+failed[0],"var(--rose)");
     };
 
     const deleteDoc=async(id)=>{
-      await sbReq("DELETE",`documents?id=eq.${id}`);
-      setCaseDocs(d=>d.filter(x=>x.id!==id));
-      notify("File deleted","var(--rose)");
+      const doc=caseDocs.find(x=>String(x.id)===String(id));
+      if(!doc)return;
+      if(!window.confirm("Delete this document record? This cannot be undone."))return;
+      try{
+        const res=await sbChecked("DELETE","documents?id=eq."+encodeURIComponent(id));
+        if(!Array.isArray(res)||!res.length)throw new Error("The document record was not deleted.");
+        setCaseDocs(d=>d.filter(x=>String(x.id)!==String(id)));
+        if(doc.storage_bucket&&doc.storage_path){
+          const {error}=await mercurySupabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+          if(error){console.error("Private file cleanup failed",error);notify("Document record deleted; private file cleanup needs attention.","var(--amber)");return;}
+        }
+        notify("Document deleted","var(--rose)");
+      }catch(error){notify("Could not delete document: "+error.message,"var(--rose)");}
     };
 
     const openDoc=async doc=>{
