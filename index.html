@@ -142,8 +142,7 @@ const sb = {
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const localDateKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const TODAY = localDateKey();
-const todayDt = new Date(TODAY+"T00:00:00");
-const daysUntil = d => Math.round((new Date(d+"T00:00:00")-todayDt)/86400000);
+const daysUntil = d => d ? Math.round((new Date(d+"T00:00:00")-new Date(localDateKey()+"T00:00:00"))/86400000) : 999;
 const fmt = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
 const fmtShort = d => new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"});
 const TYPE_META = {
@@ -245,20 +244,10 @@ function MercuryPCMS() {
     setLoading(true);
     try {
       const [c,t,f,h] = await Promise.all([
-        // Cases are loaded through a server-side PostgREST filter so Decided
-        // matters are never downloaded into the app at all.
-        (async()=>{
-          const qs="select=*&case_status=eq.Pending&order=date_next_list.asc";
-          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
-            headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json"}
-          });
-          const j=await r.json();
-          if(!r.ok) throw new Error(j?.message||"Could not load active cases");
-          return Array.isArray(j)?j:[];
-        })(),
-        sb.from("tasks").select("*"),
-        sb.from("fees").select("*"),
-        sb.from("hearing_history").select("*"),
+        sbChecked("GET","cases?select=*&case_status=eq.Pending&order=date_next_list.asc"),
+        sbChecked("GET","tasks?select=*&order=created_at.asc"),
+        sbChecked("GET","fees?select=*&order=created_at.asc"),
+        sbChecked("GET","hearing_history?select=*&order=created_at.asc"),
       ]);
       if(Array.isArray(c) && c.length > 0) {
         setCases(c);
@@ -1412,7 +1401,7 @@ function MercuryPCMS() {
 
   // ── MODALS ───────────────────────────────────────────────────────────────
   const AddTaskModal = () => {
-    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
+    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:localDateKey(),priority:"Normal"});
     const [saving,setSaving]=useState(false);
     const add=async()=>{if(!form.title.trim()){notify("Enter a task title","var(--rose)");return;}setSaving(true);try{const res=await sbChecked("POST","tasks",{...form,title:form.title.trim(),done:false});if(!Array.isArray(res)||!res.length)throw new Error("The task was not confirmed by the server.");setTasks(ts=>[...ts,...res]);setAddTask(null);notify("Task saved","var(--teal)");}catch(e){notify("Could not save task: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     return (
@@ -1434,7 +1423,7 @@ function MercuryPCMS() {
   };
 
   const AddFeeModal = () => {
-    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
+    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:localDateKey()});
     const [saving,setSaving]=useState(false);
     const add=async()=>{if(!form.client_name.trim()){notify("Enter the client name","var(--rose)");return;}setSaving(true);try{const res=await sbChecked("POST","fees",form);if(!Array.isArray(res)||!res.length)throw new Error("The fee entry was not confirmed by the server.");setFees(f=>[...f,...res]);setAddFee(null);notify("Fee entry saved","var(--teal)");}catch(e){notify("Could not save fee: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     return (
