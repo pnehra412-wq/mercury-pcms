@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-20-calendar-v4"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v1"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -158,15 +158,15 @@ const sbReq = async (method,path,body=null) => {
  const result=await authClient.auth.getSession(); const session=result.data&&result.data.session;
  if(!session||!session.access_token) throw new Error("Please sign in to Mercury.");
  const headers={apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json",Accept:"application/json"};
- if(method==="POST") headers.Prefer="return=representation,resolution=merge-duplicates"; else if(method==="PATCH") headers.Prefer="return=representation";
+ if(method==="POST") headers.Prefer="return=representation,resolution=merge-duplicates"; else if(method==="PATCH"||method==="DELETE") headers.Prefer="return=representation";
  const response=await fetch(SB_URL+"/rest/v1/"+path,{method:method,headers:headers,body:body?JSON.stringify(body):undefined});
  const payload=await response.json().catch(()=>null); if(!response.ok) throw new Error((payload&&(payload.message||payload.hint))||("Supabase request failed ("+response.status+")")); return payload;
 };
 const sb={from:t=>({select:(c="*")=>sbReq("GET",t+"?select="+c+"&order=created_at.asc"),insert:d=>sbReq("POST",t,d),update:(d,m)=>sbReq("PATCH",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"),d),delete:m=>sbReq("DELETE",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"))})};
 // ─── Helpers ──────────────────────────────────────────────────────────────
-const TODAY = (()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");})();
-const todayDt = new Date(TODAY+"T00:00:00");
-const daysUntil = d => Math.round((new Date(d+"T00:00:00")-todayDt)/86400000);
+const localDateKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const TODAY = localDateKey();
+const daysUntil = d => d ? Math.round((new Date(d+"T00:00:00")-new Date(localDateKey()+"T00:00:00"))/86400000) : 999;
 const fmt = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
 const fmtShort = d => new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"});
 const TYPE_META = {
@@ -956,8 +956,18 @@ function MercuryPCMS() {
             else if(data.cino)notify("Order analysed for "+data.cino+". Review the extracted order details.","var(--amber)");
             else notify("Order saved. Mercury could not confidently match it; no case was auto-updated.","var(--amber)");
           }else{
-            const reader=new FileReader();
-            await new Promise((resolve,reject)=>{reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.onload=async(e)=>{try{const res=await sbReq("POST","documents",{cino:c.cino,name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",file_data:e.target.result,doc_type:docType,uploaded_at:new Date().toISOString()});if(Array.isArray(res)&&res.length){setCaseDocs(d=>[res[0],...d]);uploaded++;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:c.cino,entity_type:"document",entity_id:String(res[0].id),action:"document_uploaded",summary:"Uploaded "+file.name,details:{document_type:docType,size:file.size}});}catch(_){}}resolve();}catch(err){reject(err);}};reader.readAsDataURL(file);});
+            if(file.size>25*1024*1024)throw new Error("File exceeds the 25 MB per-file limit.");
+            const safeName=String(file.name||"document").replace(/[^A-Za-z0-9._-]/g,"_").slice(0,140);
+            const safeCino=String(c.cino||"unlinked").replace(/[^A-Za-z0-9_-]/g,"_");
+            const storagePath=authUser.id+"/"+safeCino+"/"+Date.now()+"_"+crypto.randomUUID()+"_"+safeName;
+            const {error:uploadError}=await authClient.storage.from("case-files").upload(storagePath,file,{contentType:file.type||"application/octet-stream",upsert:false});
+            if(uploadError)throw uploadError;
+            try{
+              const res=await sbReq("POST","documents",{cino:c.cino,name:file.name,original_filename:file.name,size:file.size,mime_type:file.type||"application/octet-stream",storage_bucket:"case-files",storage_path:storagePath,doc_type:docType,document_category:docType,source:"Manual",source_app:"Mercury PCMS",user_id:authUser.id});
+              if(!Array.isArray(res)||!res.length)throw new Error("Document metadata was not confirmed by the server.");
+              setCaseDocs(d=>[res[0],...d]);uploaded++;
+              try{await sb.from("case_activity").insert({user_id:authUser.id,cino:c.cino,entity_type:"document",entity_id:String(res[0].id),action:"document_uploaded",summary:"Uploaded "+file.name,details:{document_type:docType,size:file.size}});}catch(_){}
+            }catch(err){const {error:cleanupError}=await authClient.storage.from("case-files").remove([storagePath]);if(cleanupError)console.error("Private upload cleanup failed",cleanupError);throw err;}
           }
         }catch(err){failures.push(file.name+": "+(err.message||"Failed"));}}
         const fresh=await sbReq("GET","documents?cino=eq."+encodeURIComponent(c.cino)+"&select=*&order=uploaded_at.desc");if(Array.isArray(fresh))setCaseDocs(fresh);
@@ -969,12 +979,19 @@ function MercuryPCMS() {
     };
 
     const deleteDoc=async(id)=>{
-      const doc=caseDocs.find(x=>x.id===id);
+      const doc=caseDocs.find(x=>String(x.id)===String(id));
       if(!window.confirm("Delete this document from Mercury? This cannot be undone from the app."))return;
-      await sbReq("DELETE",`documents?id=eq.${id}`);
-      setCaseDocs(d=>d.filter(x=>x.id!==id));
-      await logActivity(c.cino,"document_deleted","Deleted "+(doc?.name||"document"),{document_id:id});
-      notify("File deleted","var(--rose)");
+      try{
+        const deleted=await sbReq("DELETE","documents?id=eq."+encodeURIComponent(id));
+        if(!Array.isArray(deleted)||!deleted.length)throw new Error("The document record was not deleted.");
+        setCaseDocs(d=>d.filter(x=>String(x.id)!==String(id)));
+        await logActivity(c.cino,"document_deleted","Deleted "+(doc?.name||"document"),{document_id:id});
+        if(doc?.storage_bucket&&doc?.storage_path){
+          const {error}=await authClient.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+          if(error){console.error("Private document cleanup failed",error);notify("Document record deleted; file cleanup needs attention.","var(--amber)");return;}
+        }
+        notify("File deleted","var(--rose)");
+      }catch(error){notify("Could not delete document: "+error.message,"var(--rose)");}
     };
 
     const openDoc=async doc=>{
@@ -1812,7 +1829,7 @@ function MercuryPCMS() {
 
   // ── MODALS ───────────────────────────────────────────────────────────────
   const AddTaskModal = () => {
-    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
+    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:localDateKey(),priority:"Normal"});
     const [saving,setSaving]=useState(false);
     const add=async()=>{if(!form.title)return;setSaving(true);const res=await sb.from("tasks").insert({...form,user_id:authUser.id,done:false});if(Array.isArray(res)&&res.length>0){setTasks(ts=>[...ts,...res]);await logActivity(form.cino||null,"task_created","Created task: "+form.title,{due:form.due,priority:form.priority});}setAddTask(null);notify("✅ Task saved");setSaving(false);};
     return (
@@ -1834,7 +1851,7 @@ function MercuryPCMS() {
   };
 
   const AddFeeModal = () => {
-    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
+    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:localDateKey()});
     const [saving,setSaving]=useState(false);
     const add=async()=>{setSaving(true);const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(Array.isArray(res)&&res.length>0){setFees(f=>[...f,...res]);await logActivity(form.cino||null,"fee_entry_created","Created fee ledger entry",{client_name:form.client_name,amount_agreed:form.amount_agreed,amount_paid:form.amount_paid});}setAddFee(null);notify("✅ Fee saved");setSaving(false);};
     return (
