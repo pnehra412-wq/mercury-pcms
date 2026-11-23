@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v4"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v5"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -332,6 +332,8 @@ function MercuryPCMS() {
   const notionSync=async(action)=>{if(action==="sync"&&!window.confirm("Update matched Notion case rows from Supabase? Notion-only fields will be preserved."))return;try{const q=await authClient.auth.getSession();const session=q.data&&q.data.session;if(!session||!session.access_token)throw new Error("Please sign in again.");const response=await fetch(SB_URL+"/functions/v1/mercury-notion-sync",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action:action})});const data=await response.json();if(!response.ok)throw new Error(data.error||data.message||("HTTP "+response.status));if(action==="preview")notify("Preview: "+data.supabase_pending_cases_read+" pending cases; "+data.existing_cino_matches+" CINO matches; "+data.pending_cases_not_in_notion+" unmatched.","var(--teal)");else notify("Notion sync: "+data.updated_pages+" rows updated; "+data.pending_cases_not_in_notion+" unmatched. No pages created/deleted.","var(--teal)");}catch(e){notify("Notion "+action+" failed: "+e.message,"var(--rose)");}};
 
   const logActivity=async(cino,action,summary,details={})=>{if(!authUser?.id)return;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:cino||null,entity_type:cino?"case":"workspace",action,summary,details});}catch(e){console.warn("activity log",e);}};
+  const toggleTask=async(tk,next)=>{try{const res=await sb.from("tasks").update({done:next},{id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was updated.");setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));await logActivity(tk.cino||null,next?"task_completed":"task_reopened",(next?"Completed task: ":"Reopened task: ")+tk.title,{task_id:tk.id});notify(next?"Task completed":"Task reopened","var(--teal)");}catch(error){notify("Task update failed: "+error.message,"var(--rose)");}};
+  const deleteTask=async tk=>{if(!window.confirm("Delete this task? This cannot be undone."))return;try{const res=await sb.from("tasks").delete({id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was deleted.");setTasks(ts=>ts.filter(x=>x.id!==tk.id));await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});notify("Task deleted","var(--amber)");}catch(error){notify("Task deletion failed: "+error.message,"var(--rose)");}};
 
   // Browser notifications repeat every 30 minutes while Mercury is open.
   // Task reminders are individual; hearing reminders are batched once per local day.
@@ -802,21 +804,18 @@ function MercuryPCMS() {
     const saveParty=async()=>{
       const petitioner=(partyForm.petparty_name||"").trim();
       const respondent=(partyForm.resparty_name||"").trim();
-      if(!petitioner){notify("⚠️ Petitioner name cannot be empty","var(--rose)");return;}
+      if(!petitioner){notify("Petitioner name cannot be empty","var(--rose)");return;}
       setSaving(true);
-      const res=await sb.from("cases").update({petparty_name:petitioner,resparty_name:respondent},{cino:c.cino});
-      if(Array.isArray(res)&&res.length>0){
+      try{
+        const res=await sb.from("cases").update({petparty_name:petitioner,resparty_name:respondent},{cino:c.cino});
+        if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");
         const updated={...c,petparty_name:petitioner,resparty_name:respondent};
         setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,petparty_name:petitioner,resparty_name:respondent}:x));
-        setDetail(updated);
-        setPartyForm({petparty_name:petitioner,resparty_name:respondent});
+        setDetail(updated);setPartyForm({petparty_name:petitioner,resparty_name:respondent});
         await logActivity(c.cino,"parties_updated","Updated case party names",{petitioner,respondent});
-        setEditingParty(false);
-        notify("✅ Party names updated","var(--teal)");
-      }else{
-        notify("❌ Could not update party names. Please try again.","var(--rose)");
-      }
-      setSaving(false);
+        setEditingParty(false);notify("Party names updated","var(--teal)");
+      }catch(error){notify("Could not update parties: "+error.message,"var(--rose)");}
+      finally{setSaving(false);}
     };
     const updateDate=async()=>{if(!newDate)return;setSaving(true);try{const res=await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));await logActivity(c.cino,"next_hearing_date_updated","Updated next hearing date",{date:newDate});notify("Hearing date updated","var(--teal)");}catch(error){notify("Could not update hearing date: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     const addHistory=async()=>{
@@ -1177,11 +1176,11 @@ function MercuryPCMS() {
                 {caseTasks.map(tk=>(
                   <div key={tk.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:tk.done?"var(--paper)":"var(--white)",border:"1px solid var(--border)",borderRadius:7,marginBottom:6}}>
                     <div style={{width:16,height:16,borderRadius:4,cursor:"pointer",flexShrink:0,border:`2px solid ${tk.done?"var(--teal)":"var(--silver)"}`,background:tk.done?"var(--teal)":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}
-                      onClick={async()=>{const u=!tk.done;await sb.from("tasks").update({done:u},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:u}:x));}}>
+                      onClick={()=>toggleTask(tk,!tk.done)}>
                       {tk.done&&<Ic n="check" size={10} color="white"/>}
                     </div>
                     <div style={{flex:1}}><div style={{fontSize:12.5,textDecoration:tk.done?"line-through":"none",color:tk.done?"var(--silver)":"var(--ink)"}}>{tk.title}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                    <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                    <button onClick={()=>deleteTask(tk)} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
                   </div>
                 ))}
               </div>
@@ -1629,7 +1628,7 @@ function MercuryPCMS() {
             {pend.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>All caught up! ✅</div>}
             {pend.map(tk=>{const c=cases.find(x=>x.cino===tk.cino);return(
               <div key={tk.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"flex-start"}}>
-                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={async()=>{await sb.from("tasks").update({done:true},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:true}:x));await logActivity(tk.cino||null,"task_completed","Completed task: "+tk.title,{task_id:tk.id});}}/>
+                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={()=>toggleTask(tk,true)}/>
                 <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:500}}>{tk.title}</div>{c&&<div style={{fontSize:11,color:"var(--gold)",marginTop:1,cursor:"pointer"}} onClick={()=>openCase(c)}>{partyLabel(c)}</div>}<div style={{fontSize:11,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
                 <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
               </div>
@@ -1640,7 +1639,7 @@ function MercuryPCMS() {
             {done.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>No completed tasks</div>}
             {done.map(tk=>(
               <div key={tk.id} style={{padding:"9px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"center",opacity:0.55}}>
-                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={async()=>{await sb.from("tasks").update({done:false},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:false}:x));await logActivity(tk.cino||null,"task_reopened","Reopened task: "+tk.title,{task_id:tk.id});}}>
+                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>toggleTask(tk,false)}>
                   <Ic n="check" size={10} color="white"/>
                 </div>
                 <div style={{flex:1,fontSize:12.5,textDecoration:"line-through"}}>{tk.title}</div>
