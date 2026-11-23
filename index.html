@@ -277,6 +277,9 @@ function MercuryPCMS() {
   const [addTask, setAddTask] = useState(null);
   const [addFee, setAddFee]   = useState(null);
   const [addCase, setAddCase] = useState(false);
+  const [ecourtsPreview,setEcourtsPreview]=useState(null);
+  const [ecourtsBusy,setEcourtsBusy]=useState(false);
+  const ecourtsFileRef=useRef(null);
   const [toast, setToast]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [todayVersion,setTodayVersion]=useState(0);
@@ -346,6 +349,67 @@ function MercuryPCMS() {
   const logActivity=async(cino,action,summary,details={})=>{if(!authUser?.id)return;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:cino||null,entity_type:cino?"case":"workspace",action,summary,details});}catch(e){console.warn("activity log",e);}};
   const toggleTask=async(tk,next)=>{try{const res=await sb.from("tasks").update({done:next},{id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was updated.");setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));await logActivity(tk.cino||null,next?"task_completed":"task_reopened",(next?"Completed task: ":"Reopened task: ")+tk.title,{task_id:tk.id});notify(next?"Task completed":"Task reopened","var(--teal)");}catch(error){notify("Task update failed: "+error.message,"var(--rose)");}};
   const deleteTask=async tk=>{if(!window.confirm("Delete this task? This cannot be undone."))return;try{const res=await sb.from("tasks").delete({id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was deleted.");setTasks(ts=>ts.filter(x=>x.id!==tk.id));await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});notify("Task deleted","var(--amber)");}catch(error){notify("Task deletion failed: "+error.message,"var(--rose)");}};
+  const normaliseECourtsRecord=raw=>{
+    const text=value=>value===null||value===undefined?null:String(value).trim()||null;
+    const date=value=>{const v=text(value);if(!v||v==="0"||v==="0000-00-00")return null;if(/^\\d{4}-\\d{2}-\\d{2}$/.test(v))return v;const m=v.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):null;};
+    const integer=value=>{if(value===null||value===undefined||String(value).trim()==="")return null;const n=Number(value);return Number.isInteger(n)?n:null;};
+    const fields={type_name:"type_name",case_no:"case_no",reg_year:"reg_year",reg_no:"reg_no",fil_year:"fil_year",fil_no:"fil_no",fil_type_name:"fil_type_name",petparty_name:"petparty_name",resparty_name:"resparty_name",establishment_name:"establishment_name",establishment_code:"establishment_code",state_code:"state_code",district_code:"district_code",state_name:"state_name",district_name:"district_name",date_next_list:"date_next_list",date_of_decision:"date_of_decision",date_last_list:"date_last_list",court_no_desg_name:"court_no_desg_name",ltype_name:"ltype_name",lpetparty_name:"lpetparty_name",lresparty_name:"lresparty_name",lestablishment_name:"lestablishment_name",lstate_name:"lstate_name",ldistrict_name:"ldistrict_name",lcourt_no_desg_name:"lcourt_no_desg_name",disp_name:"disp_name",ldisp_name:"ldisp_name",purpose_name:"purpose_name",lpurpose_name:"lpurpose_name"};
+    const out={cino:String(raw.cino||"").trim().toUpperCase()};
+    for(const [source,target] of Object.entries(fields)){if(Object.prototype.hasOwnProperty.call(raw,source)){const value=raw[source];out[target]=["date_next_list","date_of_decision","date_last_list"].includes(target)?date(value):["reg_year","reg_no"].includes(target)?integer(value):text(value);}}
+    if(Object.prototype.hasOwnProperty.call(raw,"note"))out.ecourts_note=text(raw.note);
+    if(Object.prototype.hasOwnProperty.call(raw,"updated"))out.updated=raw.updated===true||String(raw.updated).toLowerCase()==="true";
+    const disposed=!!out.date_of_decision||!!out.disp_name;
+    out.ecourts_status=disposed?"Disposed":"Pending";
+    out.ecourts_last_synced_at=new Date().toISOString();
+    return out;
+  };
+  const handleECourtsFile=async event=>{
+    const file=event.target.files?.[0];if(!file)return;setEcourtsBusy(true);
+    try{
+      const source=await file.text();let parsed;
+      try{parsed=JSON.parse(source);}catch{parsed=source.trim().split(/\\r?\\n/).filter(Boolean).map(line=>JSON.parse(line));}
+      let raw=Array.isArray(parsed)?parsed:Array.isArray(parsed?.cases)?parsed.cases:Array.isArray(parsed?.data)?parsed.data:[];
+      raw=raw.map(item=>typeof item==="string"?JSON.parse(item):item).filter(item=>item&&typeof item==="object");
+      const byCino=new Map();let invalid=0,duplicates=0;
+      for(const item of raw){const cino=String(item.cino||"").trim().toUpperCase();if(!/^[A-Z0-9]{10,24}$/.test(cino)){invalid++;continue;}if(byCino.has(cino))duplicates++;byCino.set(cino,{...item,cino});}
+      const records=[...byCino.values()].map(normaliseECourtsRecord);
+      if(!records.length)throw new Error("No valid CNR/CINO records were found in this file.");
+      const existing=[];
+      for(let i=0;i<records.length;i+=50){const chunk=records.slice(i,i+50).map(row=>row.cino);const found=await sbReq("GET","cases?select=id,cino,case_status&cino=in.("+chunk.join(",")+")");if(Array.isArray(found))existing.push(...found);}
+      const existingByCino=new Map(existing.map(row=>[row.cino,row]));
+      const disposed=records.filter(row=>row.ecourts_status==="Disposed").length;
+      setEcourtsPreview({fileName:file.name,total:raw.length,valid:records.length,invalid,duplicates,existing:existing,existingCount:existing.length,newCount:records.length-existing.length,disposed,records});
+    }catch(error){notify("Could not read eCourts file: "+error.message,"var(--rose)");}
+    finally{setEcourtsBusy(false);event.target.value="";}
+  };
+  const applyECourtsImport=async()=>{
+    if(!ecourtsPreview||ecourtsBusy)return;setEcourtsBusy(true);
+    let updated=0,inserted=0,skipped=0;
+    try{
+      const existingByCino=new Map(ecourtsPreview.existing.map(row=>[row.cino,row]));
+      const updates=ecourtsPreview.records.filter(row=>existingByCino.has(row.cino));
+      const inserts=ecourtsPreview.records.filter(row=>!existingByCino.has(row.cino)).map(row=>({...row,user_id:authUser.id,case_status:row.ecourts_status}));
+      for(let i=0;i<updates.length;i+=8){
+        const batch=updates.slice(i,i+8);
+        const results=await Promise.all(batch.map(async row=>{
+          const existing=existingByCino.get(row.cino),payload={...row};
+          if(["Pending","Disposed"].includes(existing.case_status))payload.case_status=row.ecourts_status;
+          const result=await sbReq("PATCH","cases?cino=eq."+encodeURIComponent(row.cino),payload);
+          return Array.isArray(result)&&result.length>0;
+        }));
+        updated+=results.filter(Boolean).length;skipped+=results.filter(value=>!value).length;
+      }
+      for(let i=0;i<inserts.length;i+=50){
+        const result=await sbReq("POST","cases?on_conflict=cino",inserts.slice(i,i+50),"return=representation,resolution=ignore-duplicates");
+        inserted+=Array.isArray(result)?result.length:0;
+      }
+      await loadAll(true);
+      try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"ecourts_import",summary:"Imported eCourts case data",details:{file_name:ecourtsPreview.fileName,total:ecourtsPreview.total,valid:ecourtsPreview.valid,updated,inserted,skipped,invalid:ecourtsPreview.invalid,duplicates:ecourtsPreview.duplicates}});}catch(error){console.warn("eCourts import activity log",error);}
+      setEcourtsPreview(null);
+      notify("eCourts sync complete: "+updated+" updated, "+inserted+" new, "+skipped+" skipped. Manual client and advocate data was preserved.","var(--teal)");
+    }catch(error){notify("eCourts import stopped: "+error.message+"; completed rows are safe to re-import.","var(--rose)");}
+    finally{setEcourtsBusy(false);}
+  };
 
   // Browser notifications repeat every 30 minutes while Mercury is open.
   // Task reminders are individual; hearing reminders are batched once per local day.
