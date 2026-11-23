@@ -17,3 +17,9 @@ verify_jwt = true
 
 [functions.publish-mercury-web]
 verify_jwt = true
+
+[functions.case-ai-chats]
+verify_jwt = true
+
+[functions.mercury-notion-sync]
+verify_jwt = true
