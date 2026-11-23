@@ -4,9 +4,12 @@ const assert = require("node:assert/strict");
 const parser = require("@babel/parser");
 
 const html = fs.readFileSync("index.html", "utf8");
-const app = html.match(/<script type="text\\/babel"[^>]*>([\\s\\S]*?)<\\/script>/);
-assert(app, "Babel application script was not found");
-parser.parse(app[1], { sourceType: "script", plugins: ["jsx", "optionalChaining", "objectRestSpread"] });
+const scriptStart = html.indexOf('<script type="text/babel"');
+assert(scriptStart >= 0, "Babel application script was not found");
+const scriptBodyStart = html.indexOf(">", scriptStart) + 1;
+const scriptBodyEnd = html.indexOf("</script>", scriptBodyStart);
+assert(scriptBodyStart > 0 && scriptBodyEnd > scriptBodyStart, "Babel application script is incomplete");
+parser.parse(html.slice(scriptBodyStart, scriptBodyEnd), { sourceType: "script", plugins: ["jsx", "optionalChaining", "objectRestSpread"] });
 
 const manifestHref = html.match(/<link rel="manifest" href="([^"]+)"/);
 assert(manifestHref, "Manifest link is missing");
