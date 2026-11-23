@@ -1,0 +1,19 @@
+{
+  "name": "Mercury PCMS — Advocate Practice Management",
+  "short_name": "Mercury PCMS",
+  "description": "Case management, court diary, tasks and fee ledger",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f0f2f5",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "icons/mercury.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
