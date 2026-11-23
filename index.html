@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-05-ai-web-v1"/>
+<meta name="mercury-build" content="2026-11-23-reliability-v2"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -119,6 +119,16 @@ const sbReq = (method, path, body=null) => new Promise(resolve => {
   xhr.timeout = 10000;
   xhr.send(body ? JSON.stringify(body) : null);
 });
+
+const sbChecked = async (method,path,body=null) => {
+  const headers={apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,Accept:"application/json",Prefer:"return=representation"};
+  if(body!==null) headers["Content-Type"]="application/json";
+  const response=await fetch(SB_URL+"/rest/v1/"+path,{method,headers,body:body===null?undefined:JSON.stringify(body)});
+  const raw=await response.text(); let data=null;
+  if(raw){try{data=JSON.parse(raw);}catch(e){throw new Error("Unreadable database response.");}}
+  if(!response.ok) throw new Error(data?.message||data?.error||("Database request failed ("+response.status+")."));
+  return data;
+};
 
 const sb = {
   from: t => ({
@@ -578,7 +588,7 @@ function MercuryPCMS() {
       setChatSaving(false);
     };
 
-    const saveNote=async()=>{setSaving(true);await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));notify("✅ Notes saved");setSaving(false);};
+    const saveNote=async()=>{setSaving(true);try{const res=await sbChecked("PATCH","cases?cino=eq."+encodeURIComponent(c.cino),{notes_adv:noteVal});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));notify("Notes saved","var(--teal)");}catch(e){notify("Could not save notes: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     const saveParty=async()=>{
       const petitioner=(partyForm.petparty_name||"").trim();
       const respondent=(partyForm.resparty_name||"").trim();
@@ -597,8 +607,8 @@ function MercuryPCMS() {
       }
       setSaving(false);
     };
-    const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("✅ Date updated!");setSaving(false);};
-    const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);const res=await sb.from("hearing_history").insert({...histForm,cino:c.cino});if(Array.isArray(res))setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("✅ Hearing logged");setSaving(false);};
+    const updateDate=async()=>{if(!newDate)return;setSaving(true);try{const res=await sbChecked("PATCH","cases?cino=eq."+encodeURIComponent(c.cino),{date_next_list:newDate});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));notify("Hearing date updated","var(--teal)");}catch(e){notify("Could not update date: "+e.message,"var(--rose)");}finally{setSaving(false);}};
+    const addHistory=async()=>{if(!histForm.hearing_date)return;setSaving(true);try{const res=await sbChecked("POST","hearing_history",{...histForm,cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("The hearing entry was not confirmed.");setHistory(h=>[...h,...res]);setHistForm({hearing_date:"",purpose:"",outcome:"",next_date:"",notes:""});notify("Hearing entry saved","var(--teal)");}catch(e){notify("Could not save hearing: "+e.message,"var(--rose)");}finally{setSaving(false);}};
 
     const TABS=["info","diary","tasks","docs","notes","ai","cnr"];
     const [caseDocs,setCaseDocs]=useState([]);
@@ -1263,15 +1273,11 @@ function MercuryPCMS() {
       return {label:"UPCOMING · "+fmt(t.due),color:"#175a91",bg:"#eef6ff"};
     };
     const toggleDone=async(tk,next)=>{
-      const res=await sb.from("tasks").update({done:next},{id:tk.id});
-      setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));
-      notify(next?"Task marked complete":"Task reopened");
+      try{const res=await sbChecked("PATCH","tasks?id=eq."+encodeURIComponent(tk.id),{done:next});if(!Array.isArray(res)||!res.length)throw new Error("No task record was updated.");setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));notify(next?"Task marked complete":"Task reopened","var(--teal)");}catch(e){notify("Task update failed: "+e.message,"var(--rose)");}
     };
     const deleteTask=async tk=>{
       if(!window.confirm("Delete this task? This cannot be undone."))return;
-      await sb.from("tasks").delete({id:tk.id});
-      setTasks(ts=>ts.filter(x=>x.id!==tk.id));
-      notify("Task deleted","var(--amber)");
+      try{const res=await sbChecked("DELETE","tasks?id=eq."+encodeURIComponent(tk.id));if(!Array.isArray(res)||!res.length)throw new Error("No task record was deleted.");setTasks(ts=>ts.filter(x=>x.id!==tk.id));notify("Task deleted","var(--amber)");}catch(e){notify("Task deletion failed: "+e.message,"var(--rose)");}
     };
     const TaskRow=({tk,completed=false})=>{
       const c=cases.find(x=>x.cino===tk.cino);
@@ -1408,7 +1414,7 @@ function MercuryPCMS() {
   const AddTaskModal = () => {
     const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.title)return;setSaving(true);const res=await sb.from("tasks").insert({...form,done:false});if(Array.isArray(res)&&res.length>0)setTasks(ts=>[...ts,...res]);setAddTask(null);notify("✅ Task saved");setSaving(false);};
+    const add=async()=>{if(!form.title.trim()){notify("Enter a task title","var(--rose)");return;}setSaving(true);try{const res=await sbChecked("POST","tasks",{...form,title:form.title.trim(),done:false});if(!Array.isArray(res)||!res.length)throw new Error("The task was not confirmed by the server.");setTasks(ts=>[...ts,...res]);setAddTask(null);notify("Task saved","var(--teal)");}catch(e){notify("Could not save task: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddTask(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:460,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1430,7 +1436,7 @@ function MercuryPCMS() {
   const AddFeeModal = () => {
     const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert(form);if(Array.isArray(res)&&res.length>0)setFees(f=>[...f,...res]);setAddFee(null);notify("✅ Fee saved");setSaving(false);};
+    const add=async()=>{if(!form.client_name.trim()){notify("Enter the client name","var(--rose)");return;}setSaving(true);try{const res=await sbChecked("POST","fees",form);if(!Array.isArray(res)||!res.length)throw new Error("The fee entry was not confirmed by the server.");setFees(f=>[...f,...res]);setAddFee(null);notify("Fee entry saved","var(--teal)");}catch(e){notify("Could not save fee: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddFee(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:480,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1452,7 +1458,7 @@ function MercuryPCMS() {
   const AddCaseModal = () => {
     const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:"",case_status:"Pending"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,case_status:"Pending"});if(Array.isArray(res)&&res.length>0)setCases(cs=>[...cs,...res]);setAddCase(false);notify("✅ Case saved");setSaving(false);};
+    const add=async()=>{if(!form.cino.trim()||!form.petparty_name.trim()){notify("CNR and petitioner name are required","var(--rose)");return;}setSaving(true);try{const res=await sbChecked("POST","cases",{...form,cino:form.cino.trim(),petparty_name:form.petparty_name.trim(),case_status:"Pending"});if(!Array.isArray(res)||!res.length)throw new Error("The case was not confirmed by the server.");setCases(cs=>[...cs,...res]);setAddCase(false);notify("Case saved","var(--teal)");}catch(e){notify("Could not save case: "+e.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddCase(false)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:520,padding:22,boxShadow:"var(--shadow-lg)",maxHeight:"90vh",overflowY:"auto"}}>
@@ -1544,8 +1550,8 @@ function MercuryPCMS() {
 
       {/* Mobile navigation */}
       <nav className="mercury-mobile-nav" aria-label="Mercury mobile navigation">
-        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Calendar"},{id:"cases",icon:"search",label:"Search"},{id:"cases",icon:"list",label:"Cases"}].map((n,i)=>(
-          <button key={i} className={view===n.id && (i===0 || i===1 || i===3) ? "active":""} onClick={()=>{setView(n.id);setDetail(null);if(i===2){setView("cases");setTimeout(()=>document.querySelector(".mercury-search input")?.focus(),60);}}}>
+        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Cause List"},{id:"tasks",icon:"task",label:"Tasks"},{id:"cases",icon:"list",label:"Cases"},{id:"fees",icon:"fee",label:"Fees"}].map((n,i)=>(
+          <button key={i} className={view===n.id ? "active":""} onClick={()=>{setView(n.id);setDetail(null);if(i===2){setView("cases");setTimeout(()=>document.querySelector(".mercury-search input")?.focus(),60);}}}>
             <Ic n={n.icon} size={18}/><span>{n.label}</span>
           </button>
         ))}
