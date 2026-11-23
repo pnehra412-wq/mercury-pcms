@@ -41,3 +41,7 @@ Migration 20261123093353_set_authenticated_user_id_defaults sets user_id default
 - Fixed the GitHub Pages CORS allowlist for case-AI chat links and added proper preflight/response CORS headers to Notion sync.
 
 The Supabase security advisor currently reports one remaining warning: leaked-password protection is disabled. This requires an Auth dashboard setting not exposed by the connected database tools and remains a release gate. Performance advisor foreign-key warnings were addressed by the new indexes; unused-index informational findings were not acted on.
+
+
+## Backup restore preservation fix
+The existing backup restore path previously used merge-upsert semantics, which could overwrite newer manual records with older backup values. It has been changed to an add-only restore: it checks current IDs and natural keys, skips existing records, uses ignore-duplicates on inserts, restores documents before cases, and maps document IDs before setting case links. It never updates or deletes existing case/client/fee/note rows. The UI confirmation and completion message explicitly state how many rows were added and how many existing rows were left unchanged. This is covered by both automated validation scripts.
