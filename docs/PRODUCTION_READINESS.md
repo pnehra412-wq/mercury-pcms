@@ -80,3 +80,7 @@ These are source-level changes only. They have not been browser-tested against t
 A valid web app manifest and Mercury SVG app icon have been added to the development branch to repair the existing manifest reference and provide install metadata. A GitHub Actions validation workflow and script have also been added. The workflow parses the React/JSX application source, validates the manifest and icon paths, and checks for key reliability/mobile-navigation safeguards. The workflow result must be inspected before this branch can be considered validated.
 
 The first CI attempt exposed an escaping error in the JSX-extraction regular expression; the validator was corrected to locate the Babel script by explicit string boundaries. The updated validator is committed and must pass a fresh CI run before release.
+
+
+## Additional document-security finding
+The current case-document upload handler reads each selected file as a base64 data URL and writes it into the `documents.file_data` field through the REST API. This can inflate database rows and does not provide a safe substitute for private object storage. Before enabling document uploads for confidential client/court records, inspect the existing Storage buckets and policies, verify the `documents` schema and historical file records, then use a private bucket with authenticated, short-lived signed URLs. Do not delete or migrate existing `file_data` rows until a verified backup and checksum-based migration plan exists.
