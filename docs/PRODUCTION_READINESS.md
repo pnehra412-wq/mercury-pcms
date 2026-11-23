@@ -74,3 +74,7 @@ The following frontend corrections have now been committed to `mercury-hearing-r
 - Initial loading now checks HTTP errors for cases, tasks, fees, and hearing history rather than treating failed reads as successful empty arrays.
 
 These are source-level changes only. They have not been browser-tested against the live database. The Supabase project still reported INACTIVE, and no production deployment or database migration was performed. Authentication, RLS verification, document-storage policies, reliable closed-app notifications, and full end-to-end testing remain release blockers.
+
+
+## Installability and source validation
+A valid web app manifest and Mercury SVG app icon have been added to the development branch to repair the existing manifest reference and provide install metadata. A GitHub Actions validation workflow and script have also been added. The workflow parses the React/JSX application source, validates the manifest and icon paths, and checks for key reliability/mobile-navigation safeguards. The workflow result must be inspected before this branch can be considered validated.
