@@ -1,0 +1,20 @@
+{
+  "name": "Mercury PCMS — Advocate Practice Management",
+  "short_name": "Mercury PCMS",
+  "description": "Secure case management, cause list, case diary, reminders, documents and fee ledger.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f9",
+  "theme_color": "#141b27",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

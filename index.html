@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-10-20-calendar-v4"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v14"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -14,6 +14,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.0/babel.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -154,19 +155,19 @@ const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // The sb_publishable key is for the new JS client only
 // We use it in the Authorization header as Bearer token
 const authClient = window.supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-const sbReq = async (method,path,body=null) => {
+const sbReq = async (method,path,body=null,prefer=null) => {
  const result=await authClient.auth.getSession(); const session=result.data&&result.data.session;
  if(!session||!session.access_token) throw new Error("Please sign in to Mercury.");
  const headers={apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json",Accept:"application/json"};
- if(method==="POST") headers.Prefer="return=representation,resolution=merge-duplicates"; else if(method==="PATCH") headers.Prefer="return=representation";
+ if(method==="POST") headers.Prefer=prefer||"return=representation,resolution=merge-duplicates"; else if(method==="PATCH"||method==="DELETE") headers.Prefer="return=representation";
  const response=await fetch(SB_URL+"/rest/v1/"+path,{method:method,headers:headers,body:body?JSON.stringify(body):undefined});
  const payload=await response.json().catch(()=>null); if(!response.ok) throw new Error((payload&&(payload.message||payload.hint))||("Supabase request failed ("+response.status+")")); return payload;
 };
 const sb={from:t=>({select:(c="*")=>sbReq("GET",t+"?select="+c+"&order=created_at.asc"),insert:d=>sbReq("POST",t,d),update:(d,m)=>sbReq("PATCH",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"),d),delete:m=>sbReq("DELETE",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"))})};
 // ─── Helpers ──────────────────────────────────────────────────────────────
-const TODAY = (()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");})();
-const todayDt = new Date(TODAY+"T00:00:00");
-const daysUntil = d => Math.round((new Date(d+"T00:00:00")-todayDt)/86400000);
+const localDateKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+let TODAY = localDateKey();
+const daysUntil = d => d ? Math.round((new Date(d+"T00:00:00")-new Date(localDateKey()+"T00:00:00"))/86400000) : 999;
 const fmt = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
 const fmtShort = d => new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"});
 const TYPE_META = {
@@ -276,14 +277,20 @@ function MercuryPCMS() {
   const [addTask, setAddTask] = useState(null);
   const [addFee, setAddFee]   = useState(null);
   const [addCase, setAddCase] = useState(false);
+  const [ecourtsPreview,setEcourtsPreview]=useState(null);
+  const [ecourtsBusy,setEcourtsBusy]=useState(false);
+  const ecourtsFileRef=useRef(null);
   const [toast, setToast]     = useState(null);
   const [loading, setLoading] = useState(true);
+  const [todayVersion,setTodayVersion]=useState(0);
+  const [syncStatus,setSyncStatus]=useState("connecting");
   const [authUser,setAuthUser]=useState(null), [authReady,setAuthReady]=useState(false), [authEmail,setAuthEmail]=useState("pnehra412@gmail.com"), [authPassword,setAuthPassword]=useState(""), [authBusy,setAuthBusy]=useState(false), [authError,setAuthError]=useState("");
 
   const notify = (msg, color="var(--teal)") => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
+  useEffect(()=>{const timer=setInterval(()=>{const next=localDateKey();if(next!==TODAY){TODAY=next;setTodayVersion(v=>v+1);}},60000);return()=>clearInterval(timer);},[]);
 
-  const loadAll = async () => {
-    setLoading(true);
+  const loadAll = async (quiet=false) => {
+    if(!quiet)setLoading(true);
     try {
       const [c,t,f,h,r] = await Promise.all([
         // Cases are loaded through a server-side PostgREST filter so Decided
@@ -304,32 +311,104 @@ function MercuryPCMS() {
       ]);
       if(Array.isArray(c) && c.length > 0) {
         setCases(c);
-        notify(`✅ ${c.length} pending cases loaded`,"var(--teal)");
+        if(!quiet)notify(`${c.length} pending cases loaded`,"var(--teal)");
       } else if(Array.isArray(c) && c.length === 0) {
-        notify("⚠️ No pending/active cases found","var(--amber)");
+        if(!quiet)notify("No pending/active cases found","var(--amber)");
         setCases([]);
       } else {
-        notify("❌ Could not read active cases — check Supabase","var(--rose)");
+        if(!quiet)notify("Could not read active cases — check Supabase","var(--rose)");
       }
       if(Array.isArray(t)) setTasks(t);
       if(Array.isArray(f)) setFees(f);
       if(Array.isArray(h)) setHistory(h);
       if(Array.isArray(r)) setReminders(r);
     } catch(e) {
-      notify("Connection error: "+e.message,"var(--rose)");
+      if(!quiet)notify("Connection error: "+e.message,"var(--rose)");else console.warn("Mercury live refresh failed",e);
     }
-    setLoading(false);
+    if(!quiet)setLoading(false);
   };
 
   useEffect(()=>{let active=true; authClient.auth.getSession().then(({data:{session}})=>{if(active){setAuthUser(session?session.user:null);setAuthReady(true);}}).catch(()=>{if(active)setAuthReady(true);});
    const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setTasks([]);setFees([]);setHistory([]);setReminders([]);}});
    return ()=>{active=false;listener.data.subscription.unsubscribe();};},[]);
   useEffect(()=>{if(authUser)loadAll();},[authUser&&authUser.id]);
+  useEffect(()=>{
+    if(!authUser?.id){setSyncStatus("offline");return;}
+    let timer=null;
+    const refresh=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>loadAll(true),350);};
+    const tables=["cases","tasks","fees","hearing_history","hearing_reminders","documents","document_analysis","court_watch","case_activity","case_notes","case_issues","case_contacts","case_ai_chats"];
+    let channel=authClient.channel("mercury-live-sync-"+authUser.id);
+    for(const table of tables)channel=channel.on("postgres_changes",{event:"*",schema:"public",table},refresh);
+    channel=channel.subscribe(status=>{if(status==="SUBSCRIBED")setSyncStatus("connected");else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED")setSyncStatus("reconnecting");});
+    return ()=>{if(timer)clearTimeout(timer);setSyncStatus("offline");authClient.removeChannel(channel);};
+  },[authUser&&authUser.id]);
   const signIn=async e=>{e.preventDefault();setAuthBusy(true);setAuthError("");const r=await authClient.auth.signInWithPassword({email:authEmail.trim(),password:authPassword});setAuthBusy(false);if(r.error)setAuthError(r.error.message);else setAuthPassword("");};
   const signOut=async()=>{await authClient.auth.signOut();setAuthUser(null);};
   const notionSync=async(action)=>{if(action==="sync"&&!window.confirm("Update matched Notion case rows from Supabase? Notion-only fields will be preserved."))return;try{const q=await authClient.auth.getSession();const session=q.data&&q.data.session;if(!session||!session.access_token)throw new Error("Please sign in again.");const response=await fetch(SB_URL+"/functions/v1/mercury-notion-sync",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({action:action})});const data=await response.json();if(!response.ok)throw new Error(data.error||data.message||("HTTP "+response.status));if(action==="preview")notify("Preview: "+data.supabase_pending_cases_read+" pending cases; "+data.existing_cino_matches+" CINO matches; "+data.pending_cases_not_in_notion+" unmatched.","var(--teal)");else notify("Notion sync: "+data.updated_pages+" rows updated; "+data.pending_cases_not_in_notion+" unmatched. No pages created/deleted.","var(--teal)");}catch(e){notify("Notion "+action+" failed: "+e.message,"var(--rose)");}};
 
   const logActivity=async(cino,action,summary,details={})=>{if(!authUser?.id)return;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:cino||null,entity_type:cino?"case":"workspace",action,summary,details});}catch(e){console.warn("activity log",e);}};
+  const toggleTask=async(tk,next)=>{try{const res=await sb.from("tasks").update({done:next},{id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was updated.");setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:next}:x));await logActivity(tk.cino||null,next?"task_completed":"task_reopened",(next?"Completed task: ":"Reopened task: ")+tk.title,{task_id:tk.id});notify(next?"Task completed":"Task reopened","var(--teal)");}catch(error){notify("Task update failed: "+error.message,"var(--rose)");}};
+  const deleteTask=async tk=>{if(!window.confirm("Delete this task? This cannot be undone."))return;try{const res=await sb.from("tasks").delete({id:tk.id});if(!Array.isArray(res)||!res.length)throw new Error("No task record was deleted.");setTasks(ts=>ts.filter(x=>x.id!==tk.id));await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});notify("Task deleted","var(--amber)");}catch(error){notify("Task deletion failed: "+error.message,"var(--rose)");}};
+  const normaliseECourtsRecord=raw=>{
+    const text=value=>value===null||value===undefined?null:String(value).trim()||null;
+    const date=value=>{const v=text(value);if(!v||v==="0"||v==="0000-00-00")return null;if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;const m=v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);return m?m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0"):null;};
+    const integer=value=>{if(value===null||value===undefined||String(value).trim()==="")return null;const n=Number(value);return Number.isInteger(n)?n:null;};
+    const fields={type_name:"type_name",case_no:"case_no",reg_year:"reg_year",reg_no:"reg_no",fil_year:"fil_year",fil_no:"fil_no",fil_type_name:"fil_type_name",petparty_name:"petparty_name",resparty_name:"resparty_name",establishment_name:"establishment_name",establishment_code:"establishment_code",state_code:"state_code",district_code:"district_code",state_name:"state_name",district_name:"district_name",date_next_list:"date_next_list",date_of_decision:"date_of_decision",date_last_list:"date_last_list",court_no_desg_name:"court_no_desg_name",ltype_name:"ltype_name",lpetparty_name:"lpetparty_name",lresparty_name:"lresparty_name",lestablishment_name:"lestablishment_name",lstate_name:"lstate_name",ldistrict_name:"ldistrict_name",lcourt_no_desg_name:"lcourt_no_desg_name",disp_name:"disp_name",ldisp_name:"ldisp_name",purpose_name:"purpose_name",lpurpose_name:"lpurpose_name"};
+    const out={cino:String(raw.cino||"").trim().toUpperCase()};
+    for(const [source,target] of Object.entries(fields)){if(Object.prototype.hasOwnProperty.call(raw,source)){const value=raw[source];out[target]=["date_next_list","date_of_decision","date_last_list"].includes(target)?date(value):["reg_year","reg_no"].includes(target)?integer(value):text(value);}}
+    if(Object.prototype.hasOwnProperty.call(raw,"note"))out.ecourts_note=text(raw.note);
+    if(Object.prototype.hasOwnProperty.call(raw,"updated"))out.ecourts_updated=raw.updated===true||String(raw.updated).toLowerCase()==="true";
+    if(Object.prototype.hasOwnProperty.call(raw,"date_of_decision")||Object.prototype.hasOwnProperty.call(raw,"disp_name")){const disposed=!!out.date_of_decision||!!out.disp_name;out.ecourts_status=disposed?"Disposed":"Pending";}
+    out.ecourts_last_synced_at=new Date().toISOString();
+    return out;
+  };
+  const handleECourtsFile=async event=>{
+    const file=event.target.files?.[0];if(!file)return;setEcourtsBusy(true);
+    try{
+      const source=await file.text();let parsed;
+      try{parsed=JSON.parse(source);}catch{parsed=source.trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));}
+      let raw=Array.isArray(parsed)?parsed:Array.isArray(parsed?.cases)?parsed.cases:Array.isArray(parsed?.data)?parsed.data:[];
+      raw=raw.map(item=>typeof item==="string"?JSON.parse(item):item).filter(item=>item&&typeof item==="object");
+      const byCino=new Map();let invalid=0,duplicates=0;
+      for(const item of raw){const cino=String(item.cino||"").trim().toUpperCase();if(!/^[A-Z0-9]{10,24}$/.test(cino)){invalid++;continue;}if(byCino.has(cino))duplicates++;byCino.set(cino,{...item,cino});}
+      const records=[...byCino.values()].map(normaliseECourtsRecord);
+      if(!records.length)throw new Error("No valid CNR/CINO records were found in this file.");
+      const existing=[];
+      for(let i=0;i<records.length;i+=50){const chunk=records.slice(i,i+50).map(row=>row.cino);const found=await sbReq("GET","cases?select=id,cino,case_status&cino=in.("+chunk.join(",")+")");if(Array.isArray(found))existing.push(...found);}
+      const existingByCino=new Map(existing.map(row=>[row.cino,row]));
+      const disposed=records.filter(row=>row.ecourts_status==="Disposed").length;
+      setEcourtsPreview({fileName:file.name,total:raw.length,valid:records.length,invalid,duplicates,existing:existing,existingCount:existing.length,newCount:records.length-existing.length,disposed,records});
+    }catch(error){notify("Could not read eCourts file: "+error.message,"var(--rose)");}
+    finally{setEcourtsBusy(false);event.target.value="";}
+  };
+  const applyECourtsImport=async()=>{
+    if(!ecourtsPreview||ecourtsBusy)return;setEcourtsBusy(true);
+    let updated=0,inserted=0,skipped=0;
+    try{
+      const existingByCino=new Map(ecourtsPreview.existing.map(row=>[row.cino,row]));
+      const updates=ecourtsPreview.records.filter(row=>existingByCino.has(row.cino));
+      const inserts=ecourtsPreview.records.filter(row=>!existingByCino.has(row.cino)).map(row=>({...row,user_id:authUser.id,case_status:row.ecourts_status||"Pending"}));
+      for(let i=0;i<updates.length;i+=8){
+        const batch=updates.slice(i,i+8);
+        const results=await Promise.all(batch.map(async row=>{
+          const existing=existingByCino.get(row.cino),payload={...row};
+          if(row.ecourts_status&&["Pending","Disposed"].includes(existing.case_status))payload.case_status=row.ecourts_status;
+          const result=await sbReq("PATCH","cases?cino=eq."+encodeURIComponent(row.cino),payload);
+          return Array.isArray(result)&&result.length>0;
+        }));
+        updated+=results.filter(Boolean).length;skipped+=results.filter(value=>!value).length;
+      }
+      for(let i=0;i<inserts.length;i+=50){
+        const chunk=inserts.slice(i,i+50);const result=await sbReq("POST","cases?on_conflict=cino",chunk,"return=representation,resolution=ignore-duplicates");
+        const added=Array.isArray(result)?result.length:0;inserted+=added;skipped+=chunk.length-added;
+      }
+      await loadAll(true);
+      try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"ecourts_import",summary:"Imported eCourts case data",details:{file_name:ecourtsPreview.fileName,total:ecourtsPreview.total,valid:ecourtsPreview.valid,updated,inserted,skipped,invalid:ecourtsPreview.invalid,duplicates:ecourtsPreview.duplicates}});}catch(error){console.warn("eCourts import activity log",error);}
+      setEcourtsPreview(null);
+      notify("eCourts sync complete: "+updated+" updated, "+inserted+" new, "+skipped+" skipped. Manual client and advocate data was preserved.","var(--teal)");
+    }catch(error){notify("eCourts import stopped: "+error.message+"; completed rows are safe to re-import.","var(--rose)");}
+    finally{setEcourtsBusy(false);}
+  };
 
   // Browser notifications repeat every 30 minutes while Mercury is open.
   // Task reminders are individual; hearing reminders are batched once per local day.
@@ -372,7 +451,7 @@ function MercuryPCMS() {
     checkDueItems();
     const timer=setInterval(checkDueItems, 30*60*1000);
     return () => clearInterval(timer);
-  }, [tasks, cases]);
+  }, [tasks, cases, todayVersion]);
 
   const allDists  = useMemo(() => [...new Set(cases.map(c=>c.district_name))].sort(), [cases]);
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
@@ -550,13 +629,15 @@ function MercuryPCMS() {
   // ── CASES ────────────────────────────────────────────────────────────────
   const CasesView = () => (
     <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
+      <input ref={ecourtsFileRef} type="file" accept=".txt,.json,application/json,text/plain" style={{display:"none"}} onChange={handleECourtsFile}/>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="overdue"?"Overdue Work":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
         <div style={{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}}>
           <Btn sm v="gold" onClick={()=>setView("cases")}><Ic n="list" size={12}/>List</Btn>
           <Btn sm v="ghost" onClick={()=>setView("board")}><Ic n="columns" size={12}/>Board</Btn>
           <Btn sm v="ghost" onClick={()=>setView("calendar")}><Ic n="cal" size={12}/>Calendar</Btn>
-          <Btn sm v="ghost" onClick={()=>{const rows=filtered.map(c=>({"CNR":c.cino||"","Case":partyLabel(c),"Court":c.court_no_desg_name||"","District":c.district_name||"","Case Type":c.type_name||"","Status":c.case_status||"","Next Hearing":c.date_next_list||"","Purpose":c.purpose_name||"","Notes":c.notes_adv||c.note||""}));if(!downloadCsv("mercury-case-registry.csv",rows))notify("No cases to export","var(--amber)");}}><Ic n="save" size={12}/>Export</Btn>
+          <Btn sm v="ghost" onClick={()=>{const rows=filtered.map(c=>({"CNR":c.cino||"","Case":partyLabel(c),"Case No":c.case_no||"","Registration":c.reg_no?(String(c.reg_no)+"/"+(c.reg_year||"")):"","Court":c.court_no_desg_name||"","District":c.district_name||"","Case Type":c.type_name||"","Status":c.case_status||"","eCourts Status":c.ecourts_status||"","Next Hearing":c.date_next_list||"","Decision Date":c.date_of_decision||"","Disposition":c.disp_name||"","Purpose":c.purpose_name||"","Notes":c.notes_adv||c.note||""}));if(!downloadCsv("mercury-case-registry.csv",rows))notify("No cases to export","var(--amber)");}}><Ic n="save" size={12}/>Export</Btn>
+          <Btn sm v="ghost" onClick={()=>ecourtsFileRef.current?.click()}><Ic n="upload" size={12}/>Import eCourts</Btn>
           <Btn onClick={()=>setAddCase(true)}><Ic n="plus" size={13}/>Add Case</Btn>
         </div>
       </div>
@@ -796,31 +877,29 @@ function MercuryPCMS() {
       setChatSaving(false);
     };
 
-    const saveNote=async()=>{setSaving(true);await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));await logActivity(c.cino,"advocate_notes_updated","Updated advocate notes",{});notify("✅ Notes saved");setSaving(false);};
+    const saveNote=async()=>{setSaving(true);try{const res=await sb.from("cases").update({notes_adv:noteVal},{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,notes_adv:noteVal}:x));setDetail(p=>({...p,notes_adv:noteVal}));await logActivity(c.cino,"advocate_notes_updated","Updated advocate notes",{});notify("Advocate notes saved","var(--teal)");}catch(error){notify("Could not save notes: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     const saveParty=async()=>{
       const petitioner=(partyForm.petparty_name||"").trim();
       const respondent=(partyForm.resparty_name||"").trim();
-      if(!petitioner){notify("⚠️ Petitioner name cannot be empty","var(--rose)");return;}
+      if(!petitioner){notify("Petitioner name cannot be empty","var(--rose)");return;}
       setSaving(true);
-      const res=await sb.from("cases").update({petparty_name:petitioner,resparty_name:respondent},{cino:c.cino});
-      if(Array.isArray(res)&&res.length>0){
+      try{
+        const res=await sb.from("cases").update({petparty_name:petitioner,resparty_name:respondent},{cino:c.cino});
+        if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");
         const updated={...c,petparty_name:petitioner,resparty_name:respondent};
         setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,petparty_name:petitioner,resparty_name:respondent}:x));
-        setDetail(updated);
-        setPartyForm({petparty_name:petitioner,resparty_name:respondent});
+        setDetail(updated);setPartyForm({petparty_name:petitioner,resparty_name:respondent});
         await logActivity(c.cino,"parties_updated","Updated case party names",{petitioner,respondent});
-        setEditingParty(false);
-        notify("✅ Party names updated","var(--teal)");
-      }else{
-        notify("❌ Could not update party names. Please try again.","var(--rose)");
-      }
-      setSaving(false);
+        setEditingParty(false);notify("Party names updated","var(--teal)");
+      }catch(error){notify("Could not update parties: "+error.message,"var(--rose)");}
+      finally{setSaving(false);}
     };
-    const updateDate=async()=>{if(!newDate)return;setSaving(true);await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));await logActivity(c.cino,"next_hearing_date_updated","Updated next hearing date",{date:newDate});notify("✅ Date updated!");setSaving(false);};
+    const updateDate=async()=>{if(!newDate)return;setSaving(true);try{const res=await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));await logActivity(c.cino,"next_hearing_date_updated","Updated next hearing date",{date:newDate});notify("Hearing date updated","var(--teal)");}catch(error){notify("Could not update hearing date: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     const addHistory=async()=>{
       if(!histForm.hearing_date){notify("Please enter the hearing date","var(--amber)");return;}
       setSaving(true);
       const entry={...histForm,cino:c.cino,user_id:authUser.id};
+      try{
       const res=await sb.from("hearing_history").insert(entry);
       if(Array.isArray(res)&&res.length){
         setHistory(h=>[...h,...res]);
@@ -835,7 +914,8 @@ function MercuryPCMS() {
       }else{
         notify("Could not save the hearing. Please check your connection and try again.","var(--rose)");
       }
-      setSaving(false);
+      }catch(error){notify("Could not save hearing: "+error.message,"var(--rose)");}
+      finally{setSaving(false);}
     };
 
     const TABS=["info","diary","tasks","docs","notes","ai","cnr"];
@@ -858,6 +938,15 @@ function MercuryPCMS() {
       };
       load();
     },[c.cino]);
+
+    useEffect(()=>{
+      const reloadDocs=async()=>{try{const res=await sbReq("GET",`documents?cino=eq.${encodeURIComponent(c.cino)}&select=*&order=uploaded_at.desc`);if(Array.isArray(res))setCaseDocs(res);}catch(error){console.warn("Live document refresh failed",error);}};
+      const channel=authClient.channel("mercury-case-detail-"+c.cino)
+        .on("postgres_changes",{event:"*",schema:"public",table:"documents",filter:"cino=eq."+c.cino},reloadDocs)
+        .on("postgres_changes",{event:"*",schema:"public",table:"case_ai_chats",filter:"cino=eq."+c.cino},()=>{if(activeTab==="ai")loadChatLinks();})
+        .subscribe();
+      return ()=>{authClient.removeChannel(channel);};
+    },[c.cino,activeTab]);
 
     useEffect(()=>{ setSelectedDocIds([]); },[c.cino]);
 
@@ -956,8 +1045,18 @@ function MercuryPCMS() {
             else if(data.cino)notify("Order analysed for "+data.cino+". Review the extracted order details.","var(--amber)");
             else notify("Order saved. Mercury could not confidently match it; no case was auto-updated.","var(--amber)");
           }else{
-            const reader=new FileReader();
-            await new Promise((resolve,reject)=>{reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.onload=async(e)=>{try{const res=await sbReq("POST","documents",{cino:c.cino,name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",file_data:e.target.result,doc_type:docType,uploaded_at:new Date().toISOString()});if(Array.isArray(res)&&res.length){setCaseDocs(d=>[res[0],...d]);uploaded++;try{await sb.from("case_activity").insert({user_id:authUser.id,cino:c.cino,entity_type:"document",entity_id:String(res[0].id),action:"document_uploaded",summary:"Uploaded "+file.name,details:{document_type:docType,size:file.size}});}catch(_){}}resolve();}catch(err){reject(err);}};reader.readAsDataURL(file);});
+            if(file.size>25*1024*1024)throw new Error("File exceeds the 25 MB per-file limit.");
+            const safeName=String(file.name||"document").replace(/[^A-Za-z0-9._-]/g,"_").slice(0,140);
+            const safeCino=String(c.cino||"unlinked").replace(/[^A-Za-z0-9_-]/g,"_");
+            const storagePath=authUser.id+"/"+safeCino+"/"+Date.now()+"_"+crypto.randomUUID()+"_"+safeName;
+            const {error:uploadError}=await authClient.storage.from("case-files").upload(storagePath,file,{contentType:file.type||"application/octet-stream",upsert:false});
+            if(uploadError)throw uploadError;
+            try{
+              const res=await sbReq("POST","documents",{cino:c.cino,name:file.name,original_filename:file.name,size:file.size,mime_type:file.type||"application/octet-stream",storage_bucket:"case-files",storage_path:storagePath,doc_type:docType,document_category:docType,source:"Manual",source_app:"Mercury PCMS",user_id:authUser.id});
+              if(!Array.isArray(res)||!res.length)throw new Error("Document metadata was not confirmed by the server.");
+              setCaseDocs(d=>[res[0],...d]);uploaded++;
+              try{await sb.from("case_activity").insert({user_id:authUser.id,cino:c.cino,entity_type:"document",entity_id:String(res[0].id),action:"document_uploaded",summary:"Uploaded "+file.name,details:{document_type:docType,size:file.size}});}catch(_){}
+            }catch(err){const {error:cleanupError}=await authClient.storage.from("case-files").remove([storagePath]);if(cleanupError)console.error("Private upload cleanup failed",cleanupError);throw err;}
           }
         }catch(err){failures.push(file.name+": "+(err.message||"Failed"));}}
         const fresh=await sbReq("GET","documents?cino=eq."+encodeURIComponent(c.cino)+"&select=*&order=uploaded_at.desc");if(Array.isArray(fresh))setCaseDocs(fresh);
@@ -969,12 +1068,19 @@ function MercuryPCMS() {
     };
 
     const deleteDoc=async(id)=>{
-      const doc=caseDocs.find(x=>x.id===id);
+      const doc=caseDocs.find(x=>String(x.id)===String(id));
       if(!window.confirm("Delete this document from Mercury? This cannot be undone from the app."))return;
-      await sbReq("DELETE",`documents?id=eq.${id}`);
-      setCaseDocs(d=>d.filter(x=>x.id!==id));
-      await logActivity(c.cino,"document_deleted","Deleted "+(doc?.name||"document"),{document_id:id});
-      notify("File deleted","var(--rose)");
+      try{
+        const deleted=await sbReq("DELETE","documents?id=eq."+encodeURIComponent(id));
+        if(!Array.isArray(deleted)||!deleted.length)throw new Error("The document record was not deleted.");
+        setCaseDocs(d=>d.filter(x=>String(x.id)!==String(id)));
+        await logActivity(c.cino,"document_deleted","Deleted "+(doc?.name||"document"),{document_id:id});
+        if(doc?.storage_bucket&&doc?.storage_path){
+          const {error}=await authClient.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+          if(error){console.error("Private document cleanup failed",error);notify("Document record deleted; file cleanup needs attention.","var(--amber)");return;}
+        }
+        notify("File deleted","var(--rose)");
+      }catch(error){notify("Could not delete document: "+error.message,"var(--rose)");}
     };
 
     const openDoc=async doc=>{
@@ -1059,6 +1165,14 @@ function MercuryPCMS() {
                 {[["Court",c.court_no_desg_name],["Establishment",c.establishment_name],["District",c.district_name],["Type",t.label],["Purpose",c.purpose_name],["Next Hearing",fmt(c.date_next_list)]].map(([k,v])=>(
                   <div key={k} style={{background:"var(--paper)",borderRadius:7,padding:"9px 11px",border:"1px solid var(--border)"}}><Lbl c={k}/><div style={{fontSize:12,fontWeight:500,lineHeight:1.4}}>{v}</div></div>
                 ))}
+                {(c.case_no||c.reg_no||c.date_of_decision||c.disp_name||c.ecourts_last_synced_at)&&<div style={{gridColumn:"1/-1",background:"#f7f9fc",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:9}}><Lbl c="eCourts Registry Details"/><span style={{fontSize:9,fontWeight:800,color:c.ecourts_status==="Disposed"?"var(--rose)":"var(--teal)"}}>{c.ecourts_status||"Synced"}</span></div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:9}}>
+                    {[["Case No.",c.case_no],["Registration",c.reg_no?(String(c.reg_no)+"/"+(c.reg_year||"")):""],["Filing No.",c.fil_no],["Decision Date",fmt(c.date_of_decision)],["Last Listed",fmt(c.date_last_list)],["Disposition",c.disp_name],["Previous Type",c.ltype_name],["Previous Court",c.lcourt_no_desg_name]].map(([k,v])=><div key={k}><Lbl c={k}/><div style={{fontSize:11.5,fontWeight:600,lineHeight:1.4,wordBreak:"break-word"}}>{v||"—"}</div></div>)}
+                  </div>
+                  {c.ecourts_note&&<div style={{marginTop:8,fontSize:11,color:"var(--ink3)"}}><Lbl c="eCourts note"/>{c.ecourts_note}</div>}
+                  {c.ecourts_last_synced_at&&<div style={{fontSize:9.5,color:"var(--silver)",marginTop:7}}>Last eCourts sync: {new Date(c.ecourts_last_synced_at).toLocaleString("en-IN")}</div>}
+                </div>}
                 {c.note&&<div style={{gridColumn:"1/-1",background:"#fffbef",border:"1px solid var(--gold)40",borderRadius:7,padding:"9px 11px"}}><Lbl c="Note"/><div style={{fontSize:12}}>★ {c.note}</div></div>}
                 <div style={{gridColumn:"1/-1",background:"var(--paper)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--border)"}}>
                   <Lbl c="Update Next Hearing Date"/>
@@ -1156,11 +1270,11 @@ function MercuryPCMS() {
                 {caseTasks.map(tk=>(
                   <div key={tk.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:tk.done?"var(--paper)":"var(--white)",border:"1px solid var(--border)",borderRadius:7,marginBottom:6}}>
                     <div style={{width:16,height:16,borderRadius:4,cursor:"pointer",flexShrink:0,border:`2px solid ${tk.done?"var(--teal)":"var(--silver)"}`,background:tk.done?"var(--teal)":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}
-                      onClick={async()=>{const u=!tk.done;await sb.from("tasks").update({done:u},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:u}:x));}}>
+                      onClick={()=>toggleTask(tk,!tk.done)}>
                       {tk.done&&<Ic n="check" size={10} color="white"/>}
                     </div>
                     <div style={{flex:1}}><div style={{fontSize:12.5,textDecoration:tk.done?"line-through":"none",color:tk.done?"var(--silver)":"var(--ink)"}}>{tk.title}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                    <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                    <button onClick={()=>deleteTask(tk)} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
                   </div>
                 ))}
               </div>
@@ -1588,7 +1702,7 @@ function MercuryPCMS() {
         if(a.done!==b.done) return a.done?1:-1;
         return (a.due||"9999-99-99").localeCompare(b.due||"9999-99-99");
       });
-    },[tasks,cases,taskSearch,taskScope]);
+    },[tasks,cases,taskSearch,taskScope,todayVersion]);
     const pend=filteredTasks.filter(t=>!t.done);const done=filteredTasks.filter(t=>t.done);
     return (
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
@@ -1608,9 +1722,9 @@ function MercuryPCMS() {
             {pend.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>All caught up! ✅</div>}
             {pend.map(tk=>{const c=cases.find(x=>x.cino===tk.cino);return(
               <div key={tk.id} style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"flex-start"}}>
-                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={async()=>{await sb.from("tasks").update({done:true},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:true}:x));await logActivity(tk.cino||null,"task_completed","Completed task: "+tk.title,{task_id:tk.id});}}/>
+                <div style={{width:16,height:16,borderRadius:4,border:"2px solid var(--silver)",cursor:"pointer",flexShrink:0,marginTop:1}} onClick={()=>toggleTask(tk,true)}/>
                 <div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:500}}>{tk.title}</div>{c&&<div style={{fontSize:11,color:"var(--gold)",marginTop:1,cursor:"pointer"}} onClick={()=>openCase(c)}>{partyLabel(c)}</div>}<div style={{fontSize:11,color:"var(--silver)",marginTop:1}}>Due {fmt(tk.due)}</div></div>
-                <button onClick={async()=>{await sb.from("tasks").delete({id:tk.id});await logActivity(tk.cino||null,"task_deleted","Deleted task: "+tk.title,{task_id:tk.id});setTasks(ts=>ts.filter(x=>x.id!==tk.id));}} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
+                <button onClick={()=>deleteTask(tk)} style={{border:"none",background:"transparent",cursor:"pointer"}}><Ic n="trash" size={13} color="var(--rose)"/></button>
               </div>
             );})}
           </Card>
@@ -1619,7 +1733,7 @@ function MercuryPCMS() {
             {done.length===0&&<div style={{padding:24,textAlign:"center",color:"var(--silver)",fontSize:12}}>No completed tasks</div>}
             {done.map(tk=>(
               <div key={tk.id} style={{padding:"9px 14px",borderBottom:"1px solid var(--border)",display:"flex",gap:8,alignItems:"center",opacity:0.55}}>
-                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={async()=>{await sb.from("tasks").update({done:false},{id:tk.id});setTasks(ts=>ts.map(x=>x.id===tk.id?{...x,done:false}:x));await logActivity(tk.cino||null,"task_reopened","Reopened task: "+tk.title,{task_id:tk.id});}}>
+                <div style={{width:16,height:16,borderRadius:4,background:"var(--teal)",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>toggleTask(tk,false)}>
                   <Ic n="check" size={10} color="white"/>
                 </div>
                 <div style={{flex:1,fontSize:12.5,textDecoration:"line-through"}}>{tk.title}</div>
@@ -1746,23 +1860,82 @@ function MercuryPCMS() {
         const c=cases.find(x=>x.cino===d.cino);if(c)openCase(c);else notify("This older file is stored inline and is not linked to a case view.","var(--amber)");
       }catch(e){notify("Could not process/open order: "+(e.message||"Unknown error"),"var(--rose)");}
     };
-    const exportBackup=async()=>{setBusyBackup(true);try{const names=["cases","documents","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];const backup={format:"MercuryPCMS-backup-v1",created_at:new Date().toISOString(),workspace:authUser?.email||"Mercury",tables:{}};for(const t of names){let all=[],offset=0,b=[];do{b=await sbReq("GET",t+"?select=*&limit=500&offset="+offset);if(!Array.isArray(b))b=[];all.push(...b);offset+=b.length;}while(b.length===500&&offset<10000);backup.tables[t]=all;}const blob=new Blob([JSON.stringify(backup)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="mercury-pcms-backup-"+TODAY+".json";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"backup_exported",summary:"Full Mercury backup exported",details:{table_count:names.length}});}catch(_){}notify("Full backup exported. Store it securely outside this device.","var(--teal)");}catch(e){notify("Backup failed: "+(e.message||"Unknown error"),"var(--rose)");}finally{setBusyBackup(false);}};
+    const exportBackup=async()=>{
+      setBusyBackup(true);
+      try{
+        if(!window.JSZip)throw new Error("Backup compression library is unavailable. Reload the app and try again.");
+        const names=["cases","documents","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];
+        const backup={format:"MercuryPCMS-backup-v1",created_at:new Date().toISOString(),workspace:authUser?.email||"Mercury",tables:{}};
+        for(const table of names){let all=[],offset=0,page=[];do{page=await sbReq("GET",table+"?select=*&limit=500&offset="+offset);if(!Array.isArray(page))page=[];all.push(...page);offset+=page.length;}while(page.length===500&&offset<10000);backup.tables[table]=all;}
+        const zip=new window.JSZip();zip.file("mercury-backup.json",JSON.stringify(backup));
+        const bucket=authClient.storage.from("case-files"),paths=[];
+        const listFolder=async(folder="")=>{let offset=0,page=[];do{const {data,error}=await bucket.list(folder,{limit:1000,offset,sortBy:{column:"name",order:"asc"}});if(error)throw error;page=data||[];for(const item of page){const path=folder?folder+"/"+item.name:item.name;if(item.id===null&&!item.metadata)await listFolder(path);else paths.push(path);}offset+=page.length;}while(page.length===1000);};
+        await listFolder();
+        const storageManifest=[];
+        for(const path of paths){const {data,error}=await bucket.download(path);if(error)throw new Error("Could not include private file "+path+": "+error.message);zip.file("storage/case-files/"+path,data);storageManifest.push({path,size:data.size,contentType:data.type||"application/octet-stream"});}
+        zip.file("storage-manifest.json",JSON.stringify(storageManifest,null,2));
+        const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});
+        const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="mercury-pcms-full-backup-"+TODAY+".zip";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"backup_exported",summary:"Full Mercury backup exported",details:{table_count:names.length,storage_file_count:paths.length,storage_bytes:storageManifest.reduce((sum,item)=>sum+(item.size||0),0)}});}catch(_){}
+        notify("Full backup exported with "+paths.length+" private case files. Store it securely outside this device.","var(--teal)");
+      }catch(e){notify("Backup failed: "+(e.message||"Unknown error"),"var(--rose)");}
+      finally{setBusyBackup(false);}
+    };
     const restoreBackup=async file=>{
       if(!file)return;setRestoreBusy(true);
       try{
-        const backup=JSON.parse(await file.text());if(backup?.format!=="MercuryPCMS-backup-v1"||!backup.tables)throw new Error("This is not a Mercury PCMS backup file.");
-        if(!window.confirm("Restore records from this backup into the current Mercury workspace? Existing records will be merged by ID; no current rows will be deleted. Use only your own trusted backup."))return;
-        const order=["cases","documents","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];
-        const backupDocIds=new Set((backup.tables.documents||[]).filter(row=>row&&row.user_id===authUser.id).map(row=>String(row.id)));
-        const caseLinks=[];let restored=0;
+        let zip=null,backup;if(String(file.name||"").toLowerCase().endsWith(".zip")){if(!window.JSZip)throw new Error("Backup decompression library is unavailable.");zip=await window.JSZip.loadAsync(file);const entry=zip.file("mercury-backup.json");if(!entry)throw new Error("The ZIP does not contain a Mercury backup manifest.");backup=JSON.parse(await entry.async("string"));}else backup=JSON.parse(await file.text());if(backup?.format!=="MercuryPCMS-backup-v1"||!backup.tables)throw new Error("This is not a Mercury PCMS backup file.");
+        if(!window.confirm("Restore this backup by ADDING missing records only? Existing cases, client details, advocate notes, fee entries and other current records will NOT be overwritten or deleted."))return;
+        const order=["documents","cases","document_analysis","hearing_history","tasks","fees","hearing_reminders","case_activity","case_notes","case_issues","case_contacts","court_watch","case_ai_chats"];
+        const documentIdMap=new Map();let insertedTotal=0,skippedTotal=0;
+        const keyFor=(table,row)=>table==="case_ai_chats"?String(row.cino||"")+"|"+String(row.provider||""):table==="cases"||table==="court_watch"?String(row.cino||""):table==="documents"?String(row.fingerprint||""):"";
         for(const table of order){
           const source=Array.isArray(backup.tables[table])?backup.tables[table]:[];
           const rows=source.filter(row=>row&&row.user_id===authUser.id);
-          if(table==="cases")for(const row of rows){if(row.latest_order_document_id&&backupDocIds.has(String(row.latest_order_document_id)))caseLinks.push({id:row.id,document_id:row.latest_order_document_id});row.latest_order_document_id=null;}
-          for(let i=0;i<rows.length;i+=75){const chunk=rows.slice(i,i+75);await sbReq("POST",table+"?on_conflict=id",chunk);restored+=chunk.length;}
+          const select=table==="cases"||table==="court_watch"?"id,cino":table==="documents"?"id,fingerprint,name,size":table==="case_ai_chats"?"id,cino,provider":"id";
+          let existing=[],offset=0,page=[];
+          do{page=await sbReq("GET",table+"?select="+select+"&limit=500&offset="+offset);if(!Array.isArray(page))page=[];existing.push(...page);offset+=page.length;}while(page.length===500&&offset<10000);
+          const byId=new Map(existing.map(row=>[String(row.id),row]));
+          const ids=new Set(byId.keys());
+          const natural=new Map();
+          for(const row of existing){const k=keyFor(table,row);if(k&&!natural.has(k))natural.set(k,row);}
+          const fresh=[];
+          for(const row of rows){
+            const idKey=String(row.id),naturalKey=keyFor(table,row);
+            if(table==="documents"){
+              const sameId=byId.get(idKey);
+              if(sameId){
+                const sameFingerprint=!!row.fingerprint&&!!sameId.fingerprint&&row.fingerprint===sameId.fingerprint;
+                const sameLegacyFile=!row.fingerprint&&!sameId.fingerprint&&String(row.name||"")===String(sameId.name||"")&&Number(row.size||0)===Number(sameId.size||0);
+                if(sameFingerprint||sameLegacyFile)documentIdMap.set(idKey,idKey);
+                else if(naturalKey&&natural.has(naturalKey))documentIdMap.set(idKey,String(natural.get(naturalKey).id));
+                else documentIdMap.set(idKey,null);
+                skippedTotal++;continue;
+              }
+              if(naturalKey&&natural.has(naturalKey)){
+                documentIdMap.set(idKey,String(natural.get(naturalKey).id));skippedTotal++;continue;
+              }
+              documentIdMap.set(idKey,idKey);
+            }else if(ids.has(idKey)||(naturalKey&&natural.has(naturalKey))){
+              skippedTotal++;continue;
+            }
+            ids.add(idKey);if(naturalKey)natural.set(naturalKey,row);
+            if(table==="cases"&&row.latest_order_document_id){
+              row.latest_order_document_id=documentIdMap.get(String(row.latest_order_document_id))||null;
+            }
+            fresh.push(row);
+          }
+          for(let i=0;i<fresh.length;i+=75){
+            const chunk=fresh.slice(i,i+75);
+            const inserted=await sbReq("POST",table,chunk,"return=representation,resolution=ignore-duplicates");
+            insertedTotal+=Array.isArray(inserted)?inserted.length:0;
+          }
         }
-        for(const link of caseLinks)await sbReq("PATCH","cases?id=eq."+encodeURIComponent(link.id),{latest_order_document_id:link.document_id});
-        await loadAll();setOfficeRefresh(x=>x+1);await logActivity(null,"backup_restored","Merged records from Mercury backup",{rows:restored,backup_created_at:backup.created_at||null});notify("Backup merged successfully ("+restored+" rows). Review case dates and document links.","var(--teal)");
+        let storageRestored=0,storageSkipped=0;
+        if(zip){const manifestEntry=zip.file("storage-manifest.json");const manifest=manifestEntry?JSON.parse(await manifestEntry.async("string")):[];const bucket=authClient.storage.from("case-files");for(const item of manifest){const entry=zip.file("storage/case-files/"+item.path);if(!entry)continue;const existing=await bucket.download(item.path);if(!existing.error&&existing.data){storageSkipped++;continue;}if(existing.error&&!/not found|404/i.test(existing.error.message||""))throw existing.error;const blob=await entry.async("blob");const {error}=await bucket.upload(item.path,blob,{contentType:item.contentType||blob.type||"application/octet-stream",upsert:false});if(error){if(/already exists|duplicate/i.test(error.message||""))storageSkipped++;else throw error;}else storageRestored++;}}
+        await loadAll();setOfficeRefresh(x=>x+1);
+        await logActivity(null,"backup_restored","Added missing records and private files from Mercury backup",{inserted:insertedTotal,skipped_existing:skippedTotal,storage_restored:storageRestored,storage_skipped:storageSkipped,backup_created_at:backup.created_at||null});
+        notify("Restore finished: "+insertedTotal+" rows added, "+skippedTotal+" existing rows unchanged, "+storageRestored+" private files restored and "+storageSkipped+" already present.","var(--teal)");
       }catch(e){notify("Restore failed: "+(e.message||"Unknown error"),"var(--rose)");}
       finally{setRestoreBusy(false);if(backupFileRef.current)backupFileRef.current.value="";}
     };
@@ -1806,15 +1979,15 @@ function MercuryPCMS() {
       <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:5}}>e-Courts Order Inbox</div><div style={{fontSize:10.5,color:"var(--silver)",lineHeight:1.5,marginBottom:9}}>Orders imported from your downloads or shared to Mercury appear here. Opening an unprocessed stored PDF triggers analysis; Mercury updates a case only when the match is sufficiently confident.</div>{docs.filter(d=>String(d.doc_type||"").toLowerCase().includes("order")||String(d.source||"").toLowerCase().includes("ecourts")||!d.cino).slice(0,20).map(d=><div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 0",borderTop:"1px solid var(--border)"}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:11.5,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name||"Court order PDF"}</div><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>{d.cino||"Case not matched"} · {d.processing_status||"Not analysed"} · {d.uploaded_at?fmt(d.uploaded_at.slice(0,10)):""}</div>{d.ai_summary&&<div style={{fontSize:10.5,color:"var(--ink3)",marginTop:3}}>{d.ai_summary}</div>}</div><Btn sm v="ghost" onClick={()=>openOrderFile(d)}>{d.storage_path?"Open / analyse":"Open case"}</Btn></div>)}{!docs.some(d=>String(d.doc_type||"").toLowerCase().includes("order")||String(d.source||"").toLowerCase().includes("ecourts")||!d.cino)&&<div style={{fontSize:11,color:"var(--silver)",padding:"8px 0"}}>No court orders in the inbox yet. In a case's Docs tab, select <b>Order</b> before uploading the e-Courts PDF.</div>}</Card>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
       <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:8}}>Next actions required</div>{pendingTasks.slice(0,8).map(t=>{const cc=cases.find(x=>x.cino===t.cino);return <div key={t.id} style={{padding:"8px 0",borderTop:"1px solid var(--border)",fontSize:11.5}}><b>{t.title}</b><div style={{color:"var(--silver)",marginTop:3}}>Due {fmt(t.due)} · {cc?partyLabel(cc):t.cino||"Unlinked task"}</div></div>;})}{!pendingTasks.length&&<div style={{fontSize:11,color:"var(--silver)"}}>No pending tasks recorded.</div>}<div style={{fontWeight:800,fontSize:12,margin:"12px 0 6px"}}>Upcoming hearings</div>{upcoming.slice(0,6).map(c=><button key={c.id} onClick={()=>openCase(c)} style={{display:"flex",justifyContent:"space-between",gap:8,width:"100%",textAlign:"left",padding:"7px 0",border:0,borderTop:"1px solid var(--border)",background:"transparent",cursor:"pointer",fontSize:11}}><span>{partyLabel(c)}</span><b>{fmt(c.date_next_list)}</b></button>)}<div style={{fontWeight:800,fontSize:12,margin:"13px 0 6px"}}>Next action for each pending case</div>{cases.slice().sort((a,b)=>(a.date_next_list||"9999-99-99").localeCompare(b.date_next_list||"9999-99-99")).map(c=>{const task=pendingTasks.find(t=>t.cino===c.cino);const action=task?.title||c.latest_order_action||c.purpose_name||"Review file and prepare for the next hearing";return <button key={c.id} onClick={()=>openCase(c)} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 0",border:0,borderTop:"1px solid var(--border)",background:"transparent",cursor:"pointer"}}><div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:10.5}}><b>{partyLabel(c)}</b><span>{fmt(c.date_next_list)}</span></div><div style={{fontSize:10.5,color:"var(--teal)",marginTop:3}}>Next action: {action}</div></button>;})}</Card>
-      <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:4}}>Export & recovery</div><div style={{fontSize:11,color:"var(--silver)",lineHeight:1.6,marginBottom:10}}>Export case records, hearing history, tasks, fees, order analyses, activity and document metadata/inline files into a portable JSON backup. Storage-backed PDFs remain in the Supabase Storage bucket and are not embedded in the JSON.</div><div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn v="gold" onClick={exportBackup} disabled={busyBackup}>{busyBackup?<Spin/>:<Ic n="download" size={13}/>}Export full workspace backup</Btn><Btn v="ghost" onClick={()=>backupFileRef.current&&backupFileRef.current.click()} disabled={restoreBusy}>{restoreBusy?<Spin/>:<Ic n="upload" size={13}/>}Restore backup</Btn><input ref={backupFileRef} type="file" accept=".json,application/json" style={{display:"none"}} onChange={e=>restoreBackup(e.target.files&&e.target.files[0])}/></div><div style={{fontSize:10,color:"var(--silver)",lineHeight:1.5,marginTop:8}}>Restore merges rows by ID and never deletes current records. Use a backup from this workspace only. It does not restore authentication settings or recreate missing Storage files. The JSON may contain confidential client data; store it securely.</div><div style={{fontWeight:800,fontSize:12,margin:"15px 0 7px"}}>Recent activity</div>{activity.slice(0,8).map(a=><div key={a.id} style={{padding:"7px 0",borderTop:"1px solid var(--border)",fontSize:10.5}}><b>{a.summary||a.action}</b><div style={{color:"var(--silver)",marginTop:2}}>{a.cino||"Workspace"} · {a.created_at?new Date(a.created_at).toLocaleString("en-IN"):""}</div></div>)}{!activity.length&&!busy&&<div style={{fontSize:10.5,color:"var(--silver)"}}>Order processing and document changes will appear here.</div>}</Card></div>
+      <Card p={12}><div style={{fontWeight:800,fontSize:13,marginBottom:4}}>Export & recovery</div><div style={{fontSize:11,color:"var(--silver)",lineHeight:1.6,marginBottom:10}}>Export case records, hearing history, tasks, fees, order analyses, activity, document metadata and every private case file into a portable ZIP backup.</div><div style={{display:"flex",gap:7,flexWrap:"wrap"}}><Btn v="gold" onClick={exportBackup} disabled={busyBackup}>{busyBackup?<Spin/>:<Ic n="download" size={13}/>}Export full workspace backup</Btn><Btn v="ghost" onClick={()=>backupFileRef.current&&backupFileRef.current.click()} disabled={restoreBusy}>{restoreBusy?<Spin/>:<Ic n="upload" size={13}/>}Restore backup</Btn><input ref={backupFileRef} type="file" accept=".json,.zip,application/json,application/zip" style={{display:"none"}} onChange={e=>restoreBackup(e.target.files&&e.target.files[0])}/></div><div style={{fontSize:10,color:"var(--silver)",lineHeight:1.5,marginTop:8}}>Restore adds only missing rows and private files from a ZIP backup; it never overwrites or deletes current records or existing files. JSON-only backups restore records but do not contain file bytes. Use a backup from this workspace only. Authentication settings are not included. Backup files contain confidential client data; store them securely.</div><div style={{fontWeight:800,fontSize:12,margin:"15px 0 7px"}}>Recent activity</div>{activity.slice(0,8).map(a=><div key={a.id} style={{padding:"7px 0",borderTop:"1px solid var(--border)",fontSize:10.5}}><b>{a.summary||a.action}</b><div style={{color:"var(--silver)",marginTop:2}}>{a.cino||"Workspace"} · {a.created_at?new Date(a.created_at).toLocaleString("en-IN"):""}</div></div>)}{!activity.length&&!busy&&<div style={{fontSize:10.5,color:"var(--silver)"}}>Order processing and document changes will appear here.</div>}</Card></div>
     </div>;
   };
 
   // ── MODALS ───────────────────────────────────────────────────────────────
   const AddTaskModal = () => {
-    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:TODAY,priority:"Normal"});
+    const [form,setForm]=useState({title:"",cino:addTask==="__free__"?"":addTask||"",due:localDateKey(),priority:"Normal"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.title)return;setSaving(true);const res=await sb.from("tasks").insert({...form,user_id:authUser.id,done:false});if(Array.isArray(res)&&res.length>0){setTasks(ts=>[...ts,...res]);await logActivity(form.cino||null,"task_created","Created task: "+form.title,{due:form.due,priority:form.priority});}setAddTask(null);notify("✅ Task saved");setSaving(false);};
+    const add=async()=>{if(!form.title.trim()){notify("Enter a task title","var(--rose)");return;}setSaving(true);try{const res=await sb.from("tasks").insert({...form,title:form.title.trim(),user_id:authUser.id,done:false});if(!Array.isArray(res)||!res.length)throw new Error("The task was not confirmed by the server.");setTasks(ts=>[...ts,...res]);await logActivity(form.cino||null,"task_created","Created task: "+form.title,{due:form.due,priority:form.priority});setAddTask(null);notify("Task saved","var(--teal)");}catch(error){notify("Could not save task: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddTask(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:460,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1834,9 +2007,9 @@ function MercuryPCMS() {
   };
 
   const AddFeeModal = () => {
-    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:TODAY});
+    const [form,setForm]=useState({client_name:"",cino:"",description:"",amount_agreed:0,amount_paid:0,date_received:localDateKey()});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{setSaving(true);const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(Array.isArray(res)&&res.length>0){setFees(f=>[...f,...res]);await logActivity(form.cino||null,"fee_entry_created","Created fee ledger entry",{client_name:form.client_name,amount_agreed:form.amount_agreed,amount_paid:form.amount_paid});}setAddFee(null);notify("✅ Fee saved");setSaving(false);};
+    const add=async()=>{if(!form.client_name.trim()){notify("Enter the client name","var(--rose)");return;}setSaving(true);try{const res=await sb.from("fees").insert({...form,user_id:authUser.id});if(!Array.isArray(res)||!res.length)throw new Error("The fee entry was not confirmed by the server.");setFees(f=>[...f,...res]);await logActivity(form.cino||null,"fee_entry_created","Created fee ledger entry",{client_name:form.client_name,amount_agreed:form.amount_agreed,amount_paid:form.amount_paid});setAddFee(null);notify("Fee entry saved","var(--teal)");}catch(error){notify("Could not save fee: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddFee(null)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:480,padding:22,boxShadow:"var(--shadow-lg)"}}>
@@ -1858,7 +2031,7 @@ function MercuryPCMS() {
   const AddCaseModal = () => {
     const [form,setForm]=useState({cino:"",type_name:"CS",petparty_name:"",resparty_name:"",establishment_name:"",district_name:"Karnal",date_next_list:"",court_no_desg_name:"",purpose_name:"Appearance",note:"",case_status:"Pending"});
     const [saving,setSaving]=useState(false);
-    const add=async()=>{if(!form.cino||!form.petparty_name)return;setSaving(true);const res=await sb.from("cases").insert({...form,user_id:authUser.id,case_status:"Pending"});if(Array.isArray(res)&&res.length>0){setCases(cs=>[...cs,...res]);await logActivity(form.cino,"case_created","Created case record",{case_type:form.type_name});}setAddCase(false);notify("✅ Case saved");setSaving(false);};
+    const add=async()=>{if(!form.cino.trim()||!form.petparty_name.trim()){notify("CNR and petitioner name are required","var(--rose)");return;}setSaving(true);try{const res=await sb.from("cases").insert({...form,cino:form.cino.trim(),petparty_name:form.petparty_name.trim(),user_id:authUser.id,case_status:"Pending"});if(!Array.isArray(res)||!res.length)throw new Error("The case was not confirmed by the server.");setCases(cs=>[...cs,...res]);await logActivity(form.cino,"case_created","Created case record",{case_type:form.type_name});setAddCase(false);notify("Case saved","var(--teal)");}catch(error){notify("Could not save case: "+error.message,"var(--rose)");}finally{setSaving(false);}};
     return (
       <div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.42)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&setAddCase(false)}>
         <div className="fade-up" style={{background:"var(--white)",borderRadius:12,width:"100%",maxWidth:520,padding:22,boxShadow:"var(--shadow-lg)",maxHeight:"90vh",overflowY:"auto"}}>
@@ -1933,7 +2106,7 @@ function MercuryPCMS() {
             <div style={{width:7,height:7,borderRadius:"50%",background:loading?"#f59e0b":"#22c55e"}}/>
             <span className="mercury-status-text" style={{fontSize:10.5,color:"var(--silver)"}}>{loading?"Syncing…":"Supabase ✓"}</span>
           </div>
-          <div className="mercury-today" style={{fontSize:11,color:"var(--silver)",whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
+          <div style={{fontSize:10,color:syncStatus==="connected"?"var(--teal)":"var(--amber)",whiteSpace:"nowrap",fontWeight:700}}>{syncStatus==="connected"?"● Live sync":"● Sync reconnecting"}</div><div className="mercury-today" style={{fontSize:11,color:"var(--silver)",whiteSpace:"nowrap"}}>{new Date().toLocaleDateString("en-IN",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</div>
         </div>
 
         <div className="mercury-main-pad" style={{flex:"1 1 auto",minHeight:0,minWidth:0,overflow:"hidden",padding:"14px 18px",display:"flex",flexDirection:"column"}}>
@@ -1952,11 +2125,30 @@ function MercuryPCMS() {
       {addTask&&<AddTaskModal/>}
       {addFee&&<AddFeeModal/>}
       {addCase&&<AddCaseModal/>}
+      {ecourtsPreview&&<div style={{position:"fixed",inset:0,background:"rgba(13,17,23,0.55)",zIndex:420,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>{if(e.target===e.currentTarget&&!ecourtsBusy)setEcourtsPreview(null);}}>
+        <div className="fade-up" style={{width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",background:"var(--white)",borderRadius:14,padding:22,boxShadow:"0 24px 80px #0005"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
+            <div><div style={{fontSize:9,fontWeight:800,letterSpacing:1.2,color:"var(--gold)"}}>MERCURY DATA SYNC</div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,margin:"3px 0"}}>eCourts import preview</h2><div style={{fontSize:11,color:"var(--silver)"}}>{ecourtsPreview.fileName}</div></div>
+            <button onClick={()=>!ecourtsBusy&&setEcourtsPreview(null)} style={{border:0,background:"transparent",fontSize:22,cursor:"pointer",color:"var(--silver)"}}>×</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,margin:"18px 0"}}>
+            {[["Records",ecourtsPreview.total],["Valid CNRs",ecourtsPreview.valid],["Existing to update",ecourtsPreview.existingCount],["New cases",ecourtsPreview.newCount],["Disposed",ecourtsPreview.disposed],["Invalid / duplicate",ecourtsPreview.invalid+ecourtsPreview.duplicates]].map(([label,value])=><div key={label} style={{padding:12,border:"1px solid var(--border)",borderRadius:9,background:"var(--paper)"}}><div style={{fontSize:9,color:"var(--silver)",fontWeight:800,textTransform:"uppercase"}}>{label}</div><div style={{fontSize:22,fontWeight:800,color:"var(--ink)",marginTop:3}}>{value}</div></div>)}
+          </div>
+          <div style={{background:"#f7f0dc",border:"1px solid #e7d6a7",borderRadius:9,padding:13,fontSize:11.5,lineHeight:1.6,color:"#5d4b20"}}>
+            <strong>Manual data protection:</strong> Only eCourts-managed case fields will be updated. Client names/phone details, advocate notes, manual notes, fees, tasks, hearing history, latest-order analysis and documents will be preserved. Existing custom case statuses will not be changed; Pending/Disposed follows the eCourts status.
+          </div>
+          <div style={{fontSize:10.5,color:"var(--silver)",marginTop:12}}>The import is safe to repeat. Existing CNRs are updated; new CNRs are added. The original file is not changed.</div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}>
+            <Btn v="ghost" onClick={()=>!ecourtsBusy&&setEcourtsPreview(null)}>Cancel</Btn>
+            <button disabled={ecourtsBusy} onClick={applyECourtsImport} style={{border:0,borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:ecourtsBusy?"wait":"pointer",background:"var(--gold)",color:"var(--ink)",opacity:ecourtsBusy?0.65:1}}>{ecourtsBusy?"Importing…":"Apply safe import"}</button>
+          </div>
+        </div>
+      </div>}
 
 
       {/* Mobile navigation */}
       <nav className="mercury-mobile-nav" aria-label="Mercury mobile navigation">
-        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Calendar"},{id:"diary",icon:"history",label:"Diary"},{id:"cases",icon:"search",label:"Search"}].map((n,i)=>(
+        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Cause"},{id:"diary",icon:"history",label:"Diary"},{id:"tasks",icon:"task",label:"Tasks"},{id:"cases",icon:"search",label:"Cases"},{id:"fees",icon:"fee",label:"Fees"}].map((n,i)=>(
           <button key={i} className={view===n.id ? "active":""} aria-current={view===n.id ? "page":undefined} onClick={()=>{const targetView=n.id==="cases"?"cases":n.id;setView(targetView);setDetail(null);if(n.id==="cases"){const input=document.querySelector(".mercury-topbar .mercury-search input");if(input){input.focus();input.scrollIntoView({block:"nearest"});}}}}>
             <Ic n={n.icon} size={18}/><span>{n.label}</span>
           </button>
@@ -1970,5 +2162,6 @@ function MercuryPCMS() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MercuryPCMS));
 </script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Mercury service worker registration failed",error)));}</script>
 </body>
 </html>

@@ -1,0 +1,25 @@
+project_id = "hmtcnatqowokeyrdjujq"
+
+[functions.mercury-app]
+verify_jwt = false
+
+[functions.mercury-capture]
+verify_jwt = false
+
+[functions.mercury-office]
+verify_jwt = false
+
+[functions.capture-mobile-order]
+verify_jwt = true
+
+[functions.capture-shared-court-order]
+verify_jwt = true
+
+[functions.publish-mercury-web]
+verify_jwt = true
+
+[functions.case-ai-chats]
+verify_jwt = true
+
+[functions.mercury-notion-sync]
+verify_jwt = true
