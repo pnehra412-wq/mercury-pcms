@@ -17,7 +17,7 @@ const manifest=JSON.parse(fs.readFileSync(manifestPath,"utf8"));
 assert(manifest.name&&manifest.short_name&&manifest.start_url&&manifest.display,"PWA manifest metadata incomplete");
 for(const icon of manifest.icons||[])assert(fs.existsSync(path.resolve(icon.src)),"PWA icon missing: "+icon.src);
 assert(fs.existsSync("sw.js"),"Service worker missing");
-for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\")","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted","window.JSZip","JSZip.loadAsync(file)","storage-manifest.json","storage/case-files/","authClient.channel(\"mercury-live-sync-\"","authClient.channel(\"mercury-case-detail-\"","postgres_changes","Live sync"])assert(html.includes(marker),"Expected feature missing: "+marker);
+for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\")","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted","window.JSZip","JSZip.loadAsync(file)","storage-manifest.json","storage/case-files/","authClient.channel(\"mercury-live-sync-\"","authClient.channel(\"mercury-case-detail-\"","postgres_changes","Live sync","normaliseECourtsRecord","handleECourtsFile","applyECourtsImport","ecourts_note","eCourts import preview","Manual data protection","ecourts_last_synced_at"])assert(html.includes(marker),"Expected feature missing: "+marker);
 assert(!html.includes("file_data:e.target.result"),"New documents must not be stored as inline base64");
 const migration="supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
 assert(fs.existsSync(migration),"Authenticated owner defaults migration missing");
@@ -25,6 +25,9 @@ assert(fs.readFileSync(migration,"utf8").includes("default auth.uid()"),"Owner d
 const realtimeMigration="supabase/migrations/20261123100301_enable_mercury_realtime_sync.sql";
 assert(fs.existsSync(realtimeMigration),"Realtime publication migration missing");
 assert(fs.readFileSync(realtimeMigration,"utf8").includes("alter publication supabase_realtime add table public.cases"),"Realtime migration does not publish case changes");
+const ecourtsMigration="supabase/migrations/20261123101119_add_ecourts_sync_fields_to_cases.sql";
+assert(fs.existsSync(ecourtsMigration),"eCourts schema migration missing");
+assert(fs.readFileSync(ecourtsMigration,"utf8").includes("add column if not exists ecourts_status"),"eCourts status field missing from migration");
 const config=fs.readFileSync("supabase/config.toml","utf8");
 for(const slug of ["capture-mobile-order","capture-shared-court-order","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(config.includes("[functions."+slug+"]\\nverify_jwt = true"),"JWT verification config missing for "+slug);
 const edgeSource=slug=>fs.readFileSync("supabase/functions/"+slug+"/index.ts","utf8");
