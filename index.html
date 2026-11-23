@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v2"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v3"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -165,7 +165,7 @@ const sbReq = async (method,path,body=null) => {
 const sb={from:t=>({select:(c="*")=>sbReq("GET",t+"?select="+c+"&order=created_at.asc"),insert:d=>sbReq("POST",t,d),update:(d,m)=>sbReq("PATCH",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"),d),delete:m=>sbReq("DELETE",t+"?"+Object.entries(m).map(([k,v])=>k+"=eq."+encodeURIComponent(v)).join("&"))})};
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const localDateKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const TODAY = localDateKey();
+let TODAY = localDateKey();
 const daysUntil = d => d ? Math.round((new Date(d+"T00:00:00")-new Date(localDateKey()+"T00:00:00"))/86400000) : 999;
 const fmt = d => d ? new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}) : "—";
 const fmtShort = d => new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short"});
@@ -278,9 +278,11 @@ function MercuryPCMS() {
   const [addCase, setAddCase] = useState(false);
   const [toast, setToast]     = useState(null);
   const [loading, setLoading] = useState(true);
+  const [todayVersion,setTodayVersion]=useState(0);
   const [authUser,setAuthUser]=useState(null), [authReady,setAuthReady]=useState(false), [authEmail,setAuthEmail]=useState("pnehra412@gmail.com"), [authPassword,setAuthPassword]=useState(""), [authBusy,setAuthBusy]=useState(false), [authError,setAuthError]=useState("");
 
   const notify = (msg, color="var(--teal)") => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
+  useEffect(()=>{const timer=setInterval(()=>{const next=localDateKey();if(next!==TODAY){TODAY=next;setTodayVersion(v=>v+1);}},60000);return()=>clearInterval(timer);},[]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -372,7 +374,7 @@ function MercuryPCMS() {
     checkDueItems();
     const timer=setInterval(checkDueItems, 30*60*1000);
     return () => clearInterval(timer);
-  }, [tasks, cases]);
+  }, [tasks, cases, todayVersion]);
 
   const allDists  = useMemo(() => [...new Set(cases.map(c=>c.district_name))].sort(), [cases]);
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
@@ -1607,7 +1609,7 @@ function MercuryPCMS() {
         if(a.done!==b.done) return a.done?1:-1;
         return (a.due||"9999-99-99").localeCompare(b.due||"9999-99-99");
       });
-    },[tasks,cases,taskSearch,taskScope]);
+    },[tasks,cases,taskSearch,taskScope,todayVersion]);
     const pend=filteredTasks.filter(t=>!t.done);const done=filteredTasks.filter(t=>t.done);
     return (
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
@@ -1975,7 +1977,7 @@ function MercuryPCMS() {
 
       {/* Mobile navigation */}
       <nav className="mercury-mobile-nav" aria-label="Mercury mobile navigation">
-        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Calendar"},{id:"diary",icon:"history",label:"Diary"},{id:"cases",icon:"search",label:"Search"}].map((n,i)=>(
+        {[{id:"dashboard",icon:"home",label:"Home"},{id:"calendar",icon:"cal",label:"Cause"},{id:"diary",icon:"history",label:"Diary"},{id:"tasks",icon:"task",label:"Tasks"},{id:"cases",icon:"search",label:"Cases"},{id:"fees",icon:"fee",label:"Fees"}].map((n,i)=>(
           <button key={i} className={view===n.id ? "active":""} aria-current={view===n.id ? "page":undefined} onClick={()=>{const targetView=n.id==="cases"?"cases":n.id;setView(targetView);setDetail(null);if(n.id==="cases"){const input=document.querySelector(".mercury-topbar .mercury-search input");if(input){input.focus();input.scrollIntoView({block:"nearest"});}}}}>
             <Ic n={n.icon} size={18}/><span>{n.label}</span>
           </button>
