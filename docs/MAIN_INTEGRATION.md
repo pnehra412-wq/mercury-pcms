@@ -53,3 +53,5 @@ The workspace backup now produces a ZIP containing the complete table export, a 
 
 ## Live Windows–Android synchronization
 The Supabase Realtime publication now includes the 13 user-owned Mercury tables used by cases, tasks, fees, hearing history/reminders, documents, analysis, court watch, activity, notes, issues, contacts and AI chats. The main app subscribes to authenticated Postgres change events and quietly refreshes the workspace after a short debounce, with a Live sync status indicator. This keeps signed-in Windows and Android clients current without requiring a manual reload. The existing RLS owner policies remain in force for subscribers. This is live row-change synchronization, not a replacement for offline editing or push notifications while the app is closed.
+
+The live-sync implementation also refreshes the open case's document list and linked AI-chat records when those rows change on another signed-in device; this avoids leaving the detail panel stale while the user remains on the same case.
