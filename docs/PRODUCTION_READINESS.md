@@ -84,3 +84,15 @@ The first CI attempt exposed an escaping error in the JSX-extraction regular exp
 
 ## Additional document-security finding
 The current case-document upload handler reads each selected file as a base64 data URL and writes it into the `documents.file_data` field through the REST API. This can inflate database rows and does not provide a safe substitute for private object storage. Before enabling document uploads for confidential client/court records, inspect the existing Storage buckets and policies, verify the `documents` schema and historical file records, then use a private bucket with authenticated, short-lived signed URLs. Do not delete or migrate existing `file_data` rows until a verified backup and checksum-based migration plan exists.
+
+
+## Supabase restoration and authentication integration (2026-11-23)
+The existing Supabase project was restored to `ACTIVE_HEALTHY` and inspected before any further database work. Verified counts at inspection time: 158 cases, 1 task, 2 hearing-history rows, 7 documents, 5 document-analysis rows, 54 court-watch rows, and 0 fee rows. There is one existing Auth account. The rows in the principal office tables checked (`cases`, `tasks`, `fees`, `hearing_history`, `documents`, `court_watch`, and `document_analysis`) all belong to that existing account; no `user_id`-null rows were found in the checked tables. Existing private `case-files` storage contained 8 objects; all 7 document records had storage bucket/path references and none used legacy inline `file_data`.
+
+The frontend now initializes Supabase Auth, checks/restores the persisted session, gates the workspace behind sign-in, supports password-reset email requests, sends the current session JWT with REST and authenticated Edge Function calls, and provides sign-out. No password or credential was added to source control. The existing Auth account was not reset or modified, and an interactive sign-in was not attempted because the user's password was not available in this development session.
+
+A non-destructive database migration `20261123093353_set_authenticated_user_id_defaults` was applied and versioned in `supabase/migrations/`. It sets `user_id` defaults to `auth.uid()` on all 13 existing user-owned public tables. It changes no existing rows; row counts were rechecked after the migration and remained unchanged. Existing RLS owner policies remain enabled.
+
+The case-document upload path now writes file bytes to the existing private `case-files` bucket and stores only metadata/path in `documents`; the UI no longer writes new base64 file payloads into the database. Existing document records and storage objects were not migrated, deleted, or rewritten. Document deletion removes metadata first and then attempts private object cleanup.
+
+Remaining release work: test interactive login and all workflows in a real browser using the existing account; inspect/fix the Auth leaked-password-protection warning; verify all Edge Function authorization paths; complete background push/reminder scheduling; and test Windows/Android behaviour. No production deployment has been performed.
