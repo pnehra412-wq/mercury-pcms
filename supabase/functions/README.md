@@ -9,3 +9,5 @@ This folder versions the Edge Function source currently deployed to the existing
 
 ## Deployment
 Deploy from the repository root with the Supabase CLI and the existing project reference. Review the migration history and confirm the target project before applying database migrations. Do not deploy functions with a service-role secret embedded in source.
+
+- case-ai-chats and mercury-notion-sync require JWT verification and derive the workspace owner from existing case ownership; GitHub Pages CORS is explicitly supported.
