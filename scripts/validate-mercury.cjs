@@ -30,6 +30,9 @@ assert(fs.readFileSync(realtimeMigration,"utf8").includes("alter publication sup
 const ecourtsMigration="supabase/migrations/20261123101119_add_ecourts_sync_fields_to_cases.sql";
 assert(fs.existsSync(ecourtsMigration),"eCourts schema migration missing");
 assert(fs.readFileSync(ecourtsMigration,"utf8").includes("add column if not exists ecourts_status"),"eCourts status field missing from migration");
+const ecourtsUpdatedMigration="supabase/migrations/20261123101546_add_ecourts_updated_flag.sql";
+assert(fs.existsSync(ecourtsUpdatedMigration),"eCourts updated flag migration missing");
+assert(html.includes("ecourts_updated"),"eCourts source updated flag must use its dedicated column");
 const config=fs.readFileSync("supabase/config.toml","utf8");
 for(const slug of ["capture-mobile-order","capture-shared-court-order","publish-mercury-web","case-ai-chats","mercury-notion-sync"])assert(config.includes("[functions."+slug+"]\nverify_jwt = true"),"JWT verification config missing for "+slug);
 const edgeSource=slug=>fs.readFileSync("supabase/functions/"+slug+"/index.ts","utf8");
