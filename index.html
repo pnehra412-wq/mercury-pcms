@@ -1181,7 +1181,7 @@ function MercuryPCMS() {
         byDate[d].push(c);
       }
     });
-    Object.values(byDate).forEach(list=>list.sort((a,b)=>partyLabel(a).localeCompare(partyLabel(b))));
+    Object.values(byDate).forEach(list=>list.sort((a,b)=>(a.court_no_desg_name||"").localeCompare(b.court_no_desg_name||"")||partyLabel(a).localeCompare(partyLabel(b))));
     const cells=[];
     for(let i=0;i<firstDay;i++)cells.push(null);
     for(let d=1;d<=daysInMo;d++)cells.push(d);
