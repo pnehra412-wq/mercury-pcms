@@ -26,7 +26,7 @@ Migration 20261123093353_set_authenticated_user_id_defaults sets user_id default
 ## Release status
 - Both GitHub Actions workflows pass on the integration branch: JSX/practice checks and the main-app Auth/PWA/Storage/backup/Realtime/eCourts/migration validator.
 - Supabase migrations are applied and existing record counts were checked; changed Edge Functions are deployed with JWT verification and owner checks where they change data.
-- The PR is ready for merge. Interactive browser sign-in with the existing account and real Windows/Android smoke tests remain post-merge verification; no password reset or new Auth account was performed.
+- The integration was merged into main on 2026-11-23 (merge commit 9db5f672b6a8695c94a5f21ac7238ab2a4f49059). The mercury-app Edge Function now serves the main-branch application directly. Interactive browser sign-in with the existing account and real Windows/Android smoke tests remain post-merge verification; no password reset or new Auth account was performed.
 - The Supabase Auth leaked-password-protection advisory remains and must be enabled in the Auth dashboard. Reliable closed-app push notifications still require a push provider/VAPID secrets and a scheduler; current browser reminders require the app to be running.
 - The older Library myCases.txt snapshot was not imported. Use a current eCourts export through the new preview/import screen after the application is deployed.
 
