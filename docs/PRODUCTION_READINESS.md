@@ -64,3 +64,13 @@ The frontend embeds the Supabase project URL and legacy anon key. A browser-visi
 - Mobile users can reach every primary workspace.
 - Background reminders are delivered while the app is closed and are deduplicated.
 - Windows and Android smoke tests pass before production promotion.
+
+## Work completed in the development branch (2026-11-23)
+The following frontend corrections have now been committed to `mercury-hearing-reminders-ecourts-ui` after the original review:
+- Added a checked PostgREST request helper for mutations. Case, task, fee, hearing-history, note, and next-hearing-date writes now report success only when the server confirms returned rows; errors remain visible to the user.
+- Task completion, reopening, and deletion now wait for confirmed database responses before changing the local task list.
+- Mobile navigation now exposes Home, Cause List, Tasks, Cases, and Fees directly.
+- Date-difference calculations use the current local date at call time; new task and fee forms use the current local date when opened.
+- Initial loading now checks HTTP errors for cases, tasks, fees, and hearing history rather than treating failed reads as successful empty arrays.
+
+These are source-level changes only. They have not been browser-tested against the live database. The Supabase project still reported INACTIVE, and no production deployment or database migration was performed. Authentication, RLS verification, document-storage policies, reliable closed-app notifications, and full end-to-end testing remain release blockers.
