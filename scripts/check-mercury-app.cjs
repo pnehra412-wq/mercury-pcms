@@ -42,7 +42,9 @@ for (const [label, pattern] of [
   ["backup document ID remapping", /documentIdMap/],
   ["full ZIP backup export", /window\.JSZip/],
   ["full ZIP backup restore", /JSZip\.loadAsync\(file\)/],
-  ["private Storage backup manifest", /storage-manifest\.json/]
+  ["private Storage backup manifest", /storage-manifest\.json/],
+  ["Supabase Realtime subscription", /authClient\.channel\("mercury-live-sync-/],
+  ["cross-device Postgres changes", /postgres_changes/]
 ]) assert.match(html, pattern, "Missing expected feature: " + label);
 assert.equal((html.match(/const DiaryView\s*=/g) || []).length, 1, "Diary view should be defined exactly once");
 console.log("Mercury PCMS checks passed: JSX parses; dashboard, diary, exports, reminders, document search, task filters, and drafting brief are present.");
