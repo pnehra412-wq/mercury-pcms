@@ -1,0 +1,20 @@
+name: Mercury PCMS validation
+on:
+  pull_request:
+    branches: [phase-0-safe-foundation]
+  push:
+    branches: [mercury-hearing-reminders-ecourts-ui]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install JSX parser
+        run: npm install --no-save --no-package-lock @babel/parser
+      - name: Validate application source and PWA manifest
+        run: node scripts/validate-mercury.cjs
