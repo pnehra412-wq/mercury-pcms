@@ -19,7 +19,11 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert(manifest.name && manifest.short_name && manifest.start_url && manifest.display, "Manifest is missing required install metadata");
 for (const icon of manifest.icons || []) assert(fs.existsSync(path.resolve(icon.src)), "Manifest icon is missing: " + icon.src);
 
-for (const marker of ["const sbChecked =", "Could not save task:", "Could not save fee:", "Could not save case:", 'label:"Tasks"', 'label:"Fees"']) {
-  assert(html.includes(marker), "Expected reliability/mobile feature is missing: " + marker);
+for (const marker of ["const sbChecked =", "Could not save task:", "Could not save fee:", "Could not save case:", 'label:"Tasks"', 'label:"Fees"', "window.supabase.createClient", "signInWithPassword", "auth.updateUser({password:newPassword})", "mercuryFunctionHeaders", 'storage.from("case-files").upload', 'sbChecked("POST","documents"']) {
+  assert(html.includes(marker), "Expected reliability/security feature is missing: " + marker);
 }
-console.log("Mercury PCMS validation passed: JSX parses, manifest and icons exist, and core safeguards are present.");
+assert(!html.includes("file_data:base64"), "New uploads must not store base64 payloads in the database");
+const ownerDefaultsMigration = "supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
+assert(fs.existsSync(ownerDefaultsMigration), "Authenticated owner-default migration is missing");
+assert(fs.readFileSync(ownerDefaultsMigration, "utf8").includes("default auth.uid()"), "Owner-default migration does not use auth.uid()");
+console.log("Mercury PCMS validation passed: JSX, PWA metadata, authentication, private uploads, and owner-default migration.");
