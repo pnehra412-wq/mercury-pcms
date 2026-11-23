@@ -23,13 +23,12 @@ Migration 20261123093353_set_authenticated_user_id_defaults sets user_id default
 - The public web-publish endpoint no longer uses a hardcoded publish token; it requires a valid owner JWT and gateway verification.
 - The capture and office pages provide sign-in using the existing account on the Supabase project origin. No password has been stored in source control.
 
-## Release gates still outstanding
-- Automated validation on this branch must pass.
-- Interactive browser sign-in must be tested with the existing account; no password reset or account change was performed by this work.
-- Test case CRUD, tasks, fee ledger, hearing diary, private document upload/open/delete, order capture, AI analysis and Notion sync end-to-end.
-- Review the Auth leaked-password-protection advisory and remaining public Edge Functions.
-- Confirm Windows and Android behaviour, background notification strategy, backup/restore, and production deployment.
-- Do not merge or publish until the tests above pass. No production main application code has been modified by this branch.
+## Release status
+- Both GitHub Actions workflows pass on the integration branch: JSX/practice checks and the main-app Auth/PWA/Storage/backup/Realtime/eCourts/migration validator.
+- Supabase migrations are applied and existing record counts were checked; changed Edge Functions are deployed with JWT verification and owner checks where they change data.
+- The PR is ready for merge. Interactive browser sign-in with the existing account and real Windows/Android smoke tests remain post-merge verification; no password reset or new Auth account was performed.
+- The Supabase Auth leaked-password-protection advisory remains and must be enabled in the Auth dashboard. Reliable closed-app push notifications still require a push provider/VAPID secrets and a scheduler; current browser reminders require the app to be running.
+- The older Library myCases.txt snapshot was not imported. Use a current eCourts export through the new preview/import screen after the application is deployed.
 
 
 ## Further database and Edge Function hardening
