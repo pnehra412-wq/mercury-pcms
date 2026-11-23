@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v13"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v14"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -357,7 +357,7 @@ function MercuryPCMS() {
     const out={cino:String(raw.cino||"").trim().toUpperCase()};
     for(const [source,target] of Object.entries(fields)){if(Object.prototype.hasOwnProperty.call(raw,source)){const value=raw[source];out[target]=["date_next_list","date_of_decision","date_last_list"].includes(target)?date(value):["reg_year","reg_no"].includes(target)?integer(value):text(value);}}
     if(Object.prototype.hasOwnProperty.call(raw,"note"))out.ecourts_note=text(raw.note);
-    if(Object.prototype.hasOwnProperty.call(raw,"updated"))out.updated=raw.updated===true||String(raw.updated).toLowerCase()==="true";
+    if(Object.prototype.hasOwnProperty.call(raw,"updated"))out.ecourts_updated=raw.updated===true||String(raw.updated).toLowerCase()==="true";
     if(Object.prototype.hasOwnProperty.call(raw,"date_of_decision")||Object.prototype.hasOwnProperty.call(raw,"disp_name")){const disposed=!!out.date_of_decision||!!out.disp_name;out.ecourts_status=disposed?"Disposed":"Pending";}
     out.ecourts_last_synced_at=new Date().toISOString();
     return out;
