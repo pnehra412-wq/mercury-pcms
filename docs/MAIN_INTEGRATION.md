@@ -30,3 +30,14 @@ Migration 20261123093353_set_authenticated_user_id_defaults sets user_id default
 - Review the Auth leaked-password-protection advisory and remaining public Edge Functions.
 - Confirm Windows and Android behaviour, background notification strategy, backup/restore, and production deployment.
 - Do not merge or publish until the tests above pass. No production main application code has been modified by this branch.
+
+
+## Further database and Edge Function hardening
+- Applied migration 20261123095202_index_case_document_and_reminder_foreign_keys, adding indexes for cases.latest_order_document_id and hearing_reminders.case_id. This is additive and does not alter rows.
+- The court-order capture service now validates the authenticated user against the existing case owner and scopes document, case, analysis, task, hearing-history, activity and court-watch operations to that user. The fixed owner UUID was removed from this endpoint.
+- The shared-order capture endpoint is now a JWT-protected proxy to the same secured capture service.
+- The Mercury Office API and web-publish endpoint derive the workspace owner from the existing cases table instead of relying on a hardcoded query/publish token or user ID.
+- The capture PWA now has an account sign-in screen; it keeps a shared PDF in its local cache until the user signs in, then forwards the session JWT to the protected capture endpoint.
+- Fixed the GitHub Pages CORS allowlist for case-AI chat links and added proper preflight/response CORS headers to Notion sync.
+
+The Supabase security advisor currently reports one remaining warning: leaked-password protection is disabled. This requires an Auth dashboard setting not exposed by the connected database tools and remains a release gate. Performance advisor foreign-key warnings were addressed by the new indexes; unused-index informational findings were not acted on.
