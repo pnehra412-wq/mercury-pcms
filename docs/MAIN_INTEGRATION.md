@@ -45,3 +45,7 @@ The Supabase security advisor currently reports one remaining warning: leaked-pa
 
 ## Backup restore preservation fix
 The existing backup restore path previously used merge-upsert semantics, which could overwrite newer manual records with older backup values. It has been changed to an add-only restore: it checks current IDs and natural keys, skips existing records, uses ignore-duplicates on inserts, restores documents before cases, and maps document IDs before setting case links. It never updates or deletes existing case/client/fee/note rows. The UI confirmation and completion message explicitly state how many rows were added and how many existing rows were left unchanged. This is covered by both automated validation scripts.
+
+
+## Full backup including private documents
+The workspace backup now produces a ZIP containing the complete table export, a storage manifest, and the actual bytes of every object in the private case-files bucket. Restore accepts both older JSON-only backups and the new ZIP format. ZIP restore adds missing database rows only, uploads missing private files with upsert disabled, and skips files already present; it never overwrites an existing object. Existing records and file objects are preserved. The UI clearly distinguishes ZIP backups (records + file bytes) from legacy JSON backups (records only).
