@@ -19,6 +19,8 @@ for(const icon of manifest.icons||[])assert(fs.existsSync(path.resolve(icon.src)
 assert(fs.existsSync("sw.js"),"Service worker missing");
 for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\")","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted","window.JSZip","JSZip.loadAsync(file)","storage-manifest.json","storage/case-files/","authClient.channel(\"mercury-live-sync-\"","authClient.channel(\"mercury-case-detail-\"","postgres_changes","Live sync","normaliseECourtsRecord","handleECourtsFile","applyECourtsImport","ecourts_note","eCourts import preview","Manual data protection","ecourts_last_synced_at"])assert(html.includes(marker),"Expected feature missing: "+marker);
 assert(!html.includes("file_data:e.target.result"),"New documents must not be stored as inline base64");
+assert(html.includes('if(row.ecourts_status&&["Pending","Disposed"].includes(existing.case_status))payload.case_status=row.ecourts_status;'),"eCourts import must preserve custom case statuses");
+assert(html.includes('user_id:authUser.id,case_status:row.ecourts_status||"Pending"'),"New eCourts cases must be owned by the signed-in user");
 const migration="supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
 assert(fs.existsSync(migration),"Authenticated owner defaults migration missing");
 assert(fs.readFileSync(migration,"utf8").includes("default auth.uid()"),"Owner default migration does not use auth.uid()");
