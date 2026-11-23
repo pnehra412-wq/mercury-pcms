@@ -22,4 +22,7 @@ assert(!html.includes("file_data:e.target.result"),"New documents must not be st
 const migration="supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
 assert(fs.existsSync(migration),"Authenticated owner defaults migration missing");
 assert(fs.readFileSync(migration,"utf8").includes("default auth.uid()"),"Owner default migration does not use auth.uid()");
+const realtimeMigration="supabase/migrations/20261123100301_enable_mercury_realtime_sync.sql";
+assert(fs.existsSync(realtimeMigration),"Realtime publication migration missing");
+assert(fs.readFileSync(realtimeMigration,"utf8").includes("alter publication supabase_realtime add table public.cases"),"Realtime migration does not publish case changes");
 console.log("Mercury main-branch validation passed: JSX, Auth, private Storage uploads, PWA files, and migration.");
