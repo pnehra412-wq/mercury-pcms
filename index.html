@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-23-main-integration-v10"/>
+<meta name="mercury-build" content="2026-11-23-main-integration-v11"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -400,8 +400,8 @@ function MercuryPCMS() {
         updated+=results.filter(Boolean).length;skipped+=results.filter(value=>!value).length;
       }
       for(let i=0;i<inserts.length;i+=50){
-        const result=await sbReq("POST","cases?on_conflict=cino",inserts.slice(i,i+50),"return=representation,resolution=ignore-duplicates");
-        inserted+=Array.isArray(result)?result.length:0;
+        const chunk=inserts.slice(i,i+50);const result=await sbReq("POST","cases?on_conflict=cino",chunk,"return=representation,resolution=ignore-duplicates");
+        const added=Array.isArray(result)?result.length:0;inserted+=added;skipped+=chunk.length-added;
       }
       await loadAll(true);
       try{await sb.from("case_activity").insert({user_id:authUser.id,entity_type:"workspace",action:"ecourts_import",summary:"Imported eCourts case data",details:{file_name:ecourtsPreview.fileName,total:ecourtsPreview.total,valid:ecourtsPreview.valid,updated,inserted,skipped,invalid:ecourtsPreview.invalid,duplicates:ecourtsPreview.duplicates}});}catch(error){console.warn("eCourts import activity log",error);}
