@@ -457,7 +457,7 @@ function MercuryPCMS() {
   const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
   const todayCases = useMemo(() => cases.filter(c=>daysUntil(c.date_next_list)===0), [cases]);
   const next7      = useMemo(() => cases.filter(c=>{const d=daysUntil(c.date_next_list);return d>=0&&d<=7;}), [cases]);
-  const overdue    = useMemo(() => cases.filter(c=>c.date_next_list && daysUntil(c.date_next_list)<0), [cases]);
+  const pastDateReview = useMemo(() => cases.filter(c=>c.date_next_list && daysUntil(c.date_next_list)<0), [cases]);
   const missingDate = useMemo(() => cases.filter(c=>!c.date_next_list), [cases]);
   const pendTasks  = useMemo(() => tasks.filter(t=>!t.done), [tasks]);
 
@@ -467,7 +467,7 @@ function MercuryPCMS() {
     if(fDist!=="All") out=out.filter(c=>c.district_name===fDist);
     if(fType!=="All") out=out.filter(c=>c.type_name===fType);
     if(caseQuickFilter==="today") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)===0);
-    if(caseQuickFilter==="overdue") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)<0);
+    if(caseQuickFilter==="pastDateReview") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)<0);
     if(caseQuickFilter==="next7") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)>=0&&daysUntil(c.date_next_list)<=7);
     if(caseQuickFilter==="missing") out=out.filter(c=>!c.date_next_list);
     if(sortBy==="date") out.sort((a,b)=>new Date(a.date_next_list)-new Date(b.date_next_list));
@@ -476,7 +476,7 @@ function MercuryPCMS() {
   }, [cases,searchQ,fDist,fType,sortBy,caseQuickFilter]);
 
   const openCase = c => { setDetail(c); setView("cases"); };
-  const openOverdueCases = () => { setSearchQ(""); setFDist("All"); setFType("All"); setSortBy("date"); setCaseQuickFilter("overdue"); setView("cases"); };
+  const openPastDateReview = () => { setSearchQ(""); setFDist("All"); setFType("All"); setSortBy("date"); setCaseQuickFilter("pastDateReview"); setView("cases"); };
 
   const NAV = [
     {id:"dashboard",icon:"home",  label:"Dashboard"},
@@ -530,7 +530,7 @@ function MercuryPCMS() {
             {label:"Total Cases",    val:cases.length,         icon:"list",  color:"var(--gold)",  action:()=>setView("cases")},
             {label:"Next 7 Days",    val:next7.length,         icon:"bell",  color:"var(--amber)", action:()=>setView("calendar")},
             {label:"Today",          val:todayCases.length,    icon:"alert", color:"var(--rose)",  action:()=>setView("calendar")},
-            {label:"Overdue",        val:overdue.length,        icon:"alert", color:"#c0392b", action:openOverdueCases},
+            {label:"Past Date — Verify",val:pastDateReview.length,icon:"cal",color:"#a66a16",action:openPastDateReview},
             {label:"No Next Date",   val:missingDate.length,    icon:"cal", color:"#7a5b9e", action:()=>setView("cases")},
             {label:"Pending Tasks",  val:pendTasks.length,     icon:"task",  color:"var(--teal)",  action:()=>setView("tasks")},
             {label:"Fees Received",  val:`₹${(totalFees/1000).toFixed(0)}k`,icon:"fee",color:"#1a6aa8",action:()=>setView("fees")},
@@ -677,10 +677,10 @@ function MercuryPCMS() {
           ))}
         </div>
 
-        {overdue.length>0&&(
-          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={openOverdueCases}>
+        {pastDateReview.length>0&&(
+          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={openPastDateReview}>
             <Ic n="alert" size={14} color="var(--rose)"/>
-            <span style={{fontSize:12.5,color:"var(--rose)",fontWeight:600}}>{overdue.length} past-date hearing{overdue.length>1?"s":""} — please update next dates</span>
+            <span style={{fontSize:12.5,color:"var(--rose)",fontWeight:600}}>{pastDateReview.length} past hearing date{pastDateReview.length>1?"s":""} need verification / eCourts refresh</span>
             <Btn sm v="rose" style={{marginLeft:"auto"}}>View</Btn>
           </div>
         )}
@@ -693,7 +693,7 @@ function MercuryPCMS() {
     <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
       <input ref={ecourtsFileRef} type="file" accept=".txt,.json,application/json,text/plain" style={{display:"none"}} onChange={handleECourtsFile}/>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="overdue"?"Overdue Work":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
+        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="pastDateReview"?"Past Date Review":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
         <div style={{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}}>
           <Btn sm v="gold" onClick={()=>setView("cases")}><Ic n="list" size={12}/>List</Btn>
           <Btn sm v="ghost" onClick={()=>setView("board")}><Ic n="columns" size={12}/>Board</Btn>
@@ -705,7 +705,7 @@ function MercuryPCMS() {
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",background:"var(--white)",borderRadius:8,padding:"8px 10px",border:"1px solid var(--border)"}}>
         <span style={{fontSize:10,fontWeight:800,color:"var(--silver)",marginRight:2}}>QUICK VIEWS</span>
-        {[["all","All active"],["today","Today"],["overdue","Overdue"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
+        {[["all","All active"],["today","Today"],["pastDateReview","Past date — verify"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
         <span style={{fontSize:10,color:"var(--silver)",marginLeft:"auto"}}>{filtered.length} case(s)</span>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"var(--white)",borderRadius:8,padding:"8px 12px",border:"1px solid var(--border)"}}>
@@ -753,7 +753,7 @@ function MercuryPCMS() {
   // ── CASE BOARD: Notion-style grouped view over the existing case records ──
   const BoardView = () => {
     const groups = [
-      {key:"overdue",title:"Overdue",hint:"Past hearing date",color:"#c0392b",bg:"#fff0ee",cases:[]},
+      {key:"pastDateReview",title:"Past date — verify",hint:"Next date may need eCourts refresh",color:"#a66a16",bg:"#fff7e8",cases:[]},
       {key:"today",title:"Today",hint:"Listed today",color:"#b42318",bg:"#fff3f1",cases:[]},
       {key:"next7",title:"Next 7 Days",hint:"Upcoming",color:"#946200",bg:"#fff8e7",cases:[]},
       {key:"later",title:"Later",hint:"More than 7 days",color:"#1a6aa8",bg:"#eef6ff",cases:[]},
@@ -761,7 +761,7 @@ function MercuryPCMS() {
     ];
     filtered.forEach(c=>{
       const d=c.date_next_list?daysUntil(c.date_next_list):null;
-      const key=d===null?"missing":d<0?"overdue":d===0?"today":d<=7?"next7":"later";
+      const key=d===null?"missing":d<0?"pastDateReview":d===0?"today":d<=7?"next7":"later";
       const group=groups.find(g=>g.key===key);if(group)group.cases.push(c);
     });
     return (
@@ -779,7 +779,7 @@ function MercuryPCMS() {
           <span style={{fontSize:10,fontWeight:800,color:"var(--silver)",marginRight:2}}>QUICK VIEWS</span>
           <select value={fDist} onChange={e=>setFDist(e.target.value)} aria-label="Filter by district" style={{...iS,width:"auto",padding:"5px 7px",fontSize:10.5}}><option value="All">All districts</option>{allDists.map(d=><option key={d}>{d}</option>)}</select>
           <select value={fType} onChange={e=>setFType(e.target.value)} aria-label="Filter by case type" style={{...iS,width:"auto",padding:"5px 7px",fontSize:10.5}}><option value="All">All case types</option>{allTypes.map(t=><option key={t}>{t}</option>)}</select>
-          {[["all","All active"],["today","Today"],["overdue","Overdue"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
+          {[["all","All active"],["today","Today"],["pastDateReview","Past date — verify"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
           <span style={{fontSize:10,color:"var(--silver)",marginLeft:"auto"}}>{filtered.length} case(s)</span>
         </div>
         <div className="mercury-board-scroll" style={{display:"flex",gap:10,alignItems:"stretch",overflowX:"auto",overflowY:"hidden",paddingBottom:8,minHeight:0,flex:1}}>
@@ -795,7 +795,7 @@ function MercuryPCMS() {
                 <div style={{display:"flex",alignItems:"flex-start",gap:6,justifyContent:"space-between"}}><span className="mono" style={{fontSize:9,color:"var(--silver)",overflowWrap:"anywhere"}}>{c.cino||"No CNR"}</span><span style={{fontSize:9,fontWeight:800,color:t.color,background:t.color+"12",padding:"3px 5px",borderRadius:5,flexShrink:0}}>{t.label}</span></div>
                 <div style={{fontSize:12,fontWeight:750,lineHeight:1.45,color:"var(--ink)",marginTop:8,overflowWrap:"anywhere"}}>{partyLabel(c)}</div>
                 <div style={{fontSize:10,color:"var(--silver)",marginTop:6,overflowWrap:"anywhere"}}>{c.court_no_desg_name||"Court not recorded"}{c.district_name?" · "+c.district_name:""}</div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginTop:9,paddingTop:8,borderTop:"1px solid #edf0f4"}}><span style={{fontSize:10,fontWeight:700,color:group.color}}>{c.date_next_list?fmt(c.date_next_list):"Date not set"}</span><span style={{fontSize:9.5,color:"var(--silver)"}}>{d===null?"Review date":d<0?Math.abs(d)+" days overdue":d===0?"Today":d+" days"}</span></div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginTop:9,paddingTop:8,borderTop:"1px solid #edf0f4"}}><span style={{fontSize:10,fontWeight:700,color:group.color}}>{c.date_next_list?fmt(c.date_next_list):"Date not set"}</span><span style={{fontSize:9.5,color:"var(--silver)"}}>{d===null?"Review date":d<0?Math.abs(d)+" days past · verify":d===0?"Today":d+" days"}</span></div>
                 {c.purpose_name&&<div style={{fontSize:10,color:pcColor(c.purpose_name),fontWeight:650,marginTop:7,overflowWrap:"anywhere"}}>{c.purpose_name}</div>}
               </button>;})}
             </div>
