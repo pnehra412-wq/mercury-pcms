@@ -678,10 +678,10 @@ function MercuryPCMS() {
         </div>
 
         {pastDateReview.length>0&&(
-          <div style={{background:"#fff5f5",border:"1px solid rgba(192,57,43,0.25)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={openPastDateReview}>
-            <Ic n="alert" size={14} color="var(--rose)"/>
-            <span style={{fontSize:12.5,color:"var(--rose)",fontWeight:600}}>{pastDateReview.length} past hearing date{pastDateReview.length>1?"s":""} need verification / eCourts refresh</span>
-            <Btn sm v="rose" style={{marginLeft:"auto"}}>View</Btn>
+          <div style={{background:"#fffaf0",border:"1px solid rgba(166,106,22,0.22)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={openPastDateReview}>
+            <Ic n="cal" size={14} color="#a66a16"/>
+            <span style={{fontSize:12.5,color:"#80510f",fontWeight:600}}>{pastDateReview.length} past hearing date{pastDateReview.length>1?"s":""} need verification / eCourts refresh</span>
+            <Btn sm v="gold" style={{marginLeft:"auto"}}>Review</Btn>
           </div>
         )}
       </div>
