@@ -1772,7 +1772,7 @@ function MercuryPCMS() {
     const printCauseList=(date)=>{
       const popup=window.open("","_blank");
       if(!popup){notify("Allow pop-ups to print the cause list","var(--amber)");return;}
-      const list=[...calendarCases].filter(c=>String(c.date_next_list||"").slice(0,10)===date)
+      const list=[...new Map([...cases,...calendarCases].map(c=>[c.cino,c])).values()].filter(c=>String(c.date_next_list||"").slice(0,10)===date)
         .sort((a,b)=>(a.court_no_desg_name||"").localeCompare(b.court_no_desg_name||"")||partyLabel(a).localeCompare(partyLabel(b)));
       const esc=value=>String(value==null?"":value).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
       const label=new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
