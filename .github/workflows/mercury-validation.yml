@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [mercury-full-app-main-integration]
+    branches: [main, mercury-full-app-main-integration]
 permissions:
   contents: read
 jobs:
