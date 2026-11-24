@@ -42,4 +42,8 @@ assert(edgeSource("mercury-capture").includes("signInWithPassword"),"Capture PWA
 assert(edgeSource("mercury-app").includes("icon.svg"),"App serving function must expose the PWA icon");
 assert(edgeSource("case-ai-chats").includes('.eq("user_id",userId)'),"Case AI chats must be owner-scoped");
 assert(edgeSource("mercury-notion-sync").includes("workspaceOwnerId"),"Notion sync must derive the workspace owner");
+assert(html.includes("Daily action desk"),"Daily action desk missing");
+assert(html.includes("Action queue"),"Dashboard action queue missing");
+assert(html.includes("Prepare for next hearings"),"Hearing preparation panel missing");
+assert(html.includes("toggleTask(t,true)"),"Task completion handler missing");
 console.log("Mercury main-branch validation passed: JSX, Auth, private Storage uploads, PWA files, and migration.");
