@@ -835,6 +835,9 @@ function MercuryPCMS() {
     const [editingParty,setEditingParty]=useState(false);
     const [partyForm,setPartyForm]=useState({petparty_name:c.petparty_name||"",resparty_name:c.resparty_name||""});
     const [newDate,setNewDate]=useState(c.date_next_list||"");
+    const [verificationSource,setVerificationSource]=useState(c.date_verification_source||"eCourts");
+    const [verificationNote,setVerificationNote]=useState(c.date_verification_note||"");
+    const [verificationSaving,setVerificationSaving]=useState(false);
     const [reminderAt,setReminderAt]=useState("");
     const [reminderSaving,setReminderSaving]=useState(false);
     const saveHearingReminder=async()=>{if(!reminderAt){notify("Choose a reminder date and time","var(--amber)");return;}setReminderSaving(true);try{const when=new Date(reminderAt);if(Number.isNaN(when.getTime())||when.getTime()<=Date.now())throw new Error("Choose a future date and time.");const res=await sb.from("hearing_reminders").insert({user_id:authUser.id,case_id:c.id,reminder_at:when.toISOString(),channel:"in_app",status:"pending",next_attempt_at:when.toISOString()});if(Array.isArray(res)&&res.length){setReminders(list=>[...list,...res]);setReminderAt("");notify("Reminder saved to Supabase","var(--teal)");}else notify("Reminder was not saved","var(--rose)");}catch(e){notify("Reminder failed: "+e.message,"var(--rose)");}setReminderSaving(false);};
@@ -967,7 +970,8 @@ function MercuryPCMS() {
       }catch(error){notify("Could not update parties: "+error.message,"var(--rose)");}
       finally{setSaving(false);}
     };
-    const updateDate=async()=>{if(!newDate)return;setSaving(true);try{const res=await sb.from("cases").update({date_next_list:newDate},{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,date_next_list:newDate}:x));setDetail(p=>({...p,date_next_list:newDate}));await logActivity(c.cino,"next_hearing_date_updated","Updated next hearing date",{date:newDate});notify("Hearing date updated","var(--teal)");}catch(error){notify("Could not update hearing date: "+error.message,"var(--rose)");}finally{setSaving(false);}};
+    const updateDate=async()=>{if(!newDate)return;setSaving(true);try{const verifiedAt=new Date().toISOString();const patch={date_next_list:newDate,date_last_verified_at:verifiedAt,date_verification_source:"manual",date_verification_note:"Next date manually updated by advocate"};const res=await sb.from("cases").update(patch,{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,...patch}:x));setVerificationCases(cs=>cs.map(x=>x.cino===c.cino?{...x,...patch}:x));setDetail(p=>({...p,...patch}));await logActivity(c.cino,"next_hearing_date_updated","Updated and verified next hearing date",{date:newDate,source:"manual"});notify("Hearing date updated and marked verified","var(--teal)");}catch(error){notify("Could not update hearing date: "+error.message,"var(--rose)");}finally{setSaving(false);}};
+    const markDateVerified=async()=>{if(!c.date_next_list){notify("Set a next hearing date before marking it verified","var(--amber)");return;}setVerificationSaving(true);try{const patch={date_last_verified_at:new Date().toISOString(),date_verification_source:verificationSource,date_verification_note:verificationNote.trim()||null};const res=await sb.from("cases").update(patch,{cino:c.cino});if(!Array.isArray(res)||!res.length)throw new Error("No case record was updated.");setCases(cs=>cs.map(x=>x.cino===c.cino?{...x,...patch}:x));setVerificationCases(cs=>cs.map(x=>x.cino===c.cino?{...x,...patch}:x));setDetail(p=>({...p,...patch}));await logActivity(c.cino,"hearing_date_verified","Verified next hearing date",{date:c.date_next_list,source:verificationSource,note:patch.date_verification_note});notify("Hearing date marked verified","var(--teal)");}catch(error){notify("Could not verify hearing date: "+error.message,"var(--rose)");}finally{setVerificationSaving(false);}};
     const addHistory=async()=>{
       if(!histForm.hearing_date){notify("Please enter the hearing date","var(--amber)");return;}
       setSaving(true);
@@ -1251,7 +1255,15 @@ function MercuryPCMS() {
                   <Lbl c="Update Next Hearing Date"/>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{...iS,flex:1}}/>
-                    <Btn sm v="teal" onClick={updateDate}>{saving?<Spin/>:<Ic n="save" size={12}/>}Save</Btn>
+                    <Btn sm v="teal" onClick={updateDate}>{saving?<Spin/>:<Ic n="save" size={12}/>}Save & verify</Btn>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"minmax(130px,0.8fr) minmax(180px,1.2fr)",gap:8,marginTop:9}}>
+                    <div><Lbl c="Verification source"/><select value={verificationSource} onChange={e=>setVerificationSource(e.target.value)} style={iS}><option value="eCourts">eCourts</option><option value="cause_list">Court cause list</option><option value="court_order">Court order</option><option value="manual">Manual / court inquiry</option></select></div>
+                    <div><Lbl c="Verification note (optional)"/><input value={verificationNote} onChange={e=>setVerificationNote(e.target.value)} placeholder="e.g. Checked against latest order" style={iS}/></div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:8}}>
+                    <Btn sm v="ghost" onClick={markDateVerified} disabled={verificationSaving||!c.date_next_list}>{verificationSaving?<Spin/>:<Ic n="check-circle" size={12}/>}Mark current date checked</Btn>
+                    <span style={{fontSize:10,color:"var(--silver)"}}>{c.date_last_verified_at?"Last checked "+new Date(c.date_last_verified_at).toLocaleString("en-IN")+" · "+(c.date_verification_source||"source not recorded"):"Not yet verified"}</span>
                   </div>
                 </div>
                 <div style={{gridColumn:"1/-1",background:"var(--paper)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--border)"}}><Lbl c="Durable Hearing Reminder"/><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><input aria-label="Reminder date and time" type="datetime-local" value={reminderAt} onChange={e=>setReminderAt(e.target.value)} style={{...iS,flex:"1 1 190px"}}/><Btn sm v="teal" onClick={saveHearingReminder}>{reminderSaving?<Spin/>:<Ic n="bell" size={12}/>}Save Reminder</Btn></div><div style={{fontSize:10,color:"var(--silver)",marginTop:6}}>Stored in Supabase and shared across signed-in devices. Automatic background delivery is not enabled yet.</div>{reminders.filter(x=>x.case_id===c.id).length>0&&<div style={{marginTop:8,display:"grid",gap:5}}>{reminders.filter(x=>x.case_id===c.id).map(x=><div key={x.id} style={{fontSize:11,display:"flex",justifyContent:"space-between",gap:8}}><span>{new Date(x.reminder_at).toLocaleString("en-IN")}</span><span style={{color:x.status==="sent"?"var(--teal)":"var(--amber)"}}>{x.status} · attempts {x.attempts}</span></div>)}</div>}</div>
