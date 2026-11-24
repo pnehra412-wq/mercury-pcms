@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-24-android-reminders-v21"/>
+<meta name="mercury-build" content="2026-11-24-daily-cause-list-v22"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -1769,10 +1769,22 @@ function MercuryPCMS() {
         </button>;})}
       </div>;
     };
+    const printCauseList=(date)=>{
+      const popup=window.open("","_blank");
+      if(!popup){notify("Allow pop-ups to print the cause list","var(--amber)");return;}
+      const list=[...calendarCases].filter(c=>String(c.date_next_list||"").slice(0,10)===date)
+        .sort((a,b)=>(a.court_no_desg_name||"").localeCompare(b.court_no_desg_name||"")||partyLabel(a).localeCompare(partyLabel(b)));
+      const esc=value=>String(value==null?"":value).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+      const label=new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+      const rows=list.map((c,i)=>'<tr><td class="num">'+(i+1)+'</td><td><strong>'+esc(partyLabel(c))+'</strong><small>'+esc(c.type_name||"")+(c.note?' · '+esc(c.note):"")+'</small></td><td>'+esc(c.court_no_desg_name||c.establishment_name||"—")+'<small>'+esc(c.district_name||"")+'</small></td><td>'+esc(c.purpose_name||"—")+'</td><td class="cnr">'+esc(c.cino||"—")+'</td><td class="blank"></td></tr>').join("");
+      popup.document.open();
+      popup.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mercury Daily Cause List - '+esc(date)+'</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font:10px Arial,sans-serif;color:#111;margin:0}.head{text-align:center;border-bottom:2px solid #222;padding-bottom:9px;margin-bottom:12px}.head h1{font:bold 19px Georgia,serif;margin:0 0 4px}.head .sub{font-size:10px;letter-spacing:1px;text-transform:uppercase}.date{font-size:13px;font-weight:bold;margin-top:8px}.meta{display:flex;justify-content:space-between;margin:10px 0;font-size:9px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #777;padding:6px 5px;vertical-align:top;text-align:left;overflow-wrap:anywhere}th{background:#eee;font-size:9px;text-transform:uppercase}.num{width:5%;text-align:center}.cnr{font:8px monospace;word-break:break-all}.blank{width:13%}td small{display:block;color:#555;font-size:8px;margin-top:3px}.foot{margin-top:14px;font-size:8px;color:#555;display:flex;justify-content:space-between}.notes{margin-top:18px;border-top:1px solid #777;padding-top:7px;font-weight:bold}.notes-lines{height:75px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 23px,#bbb 24px)}.empty{padding:18px;border:1px dashed #777;text-align:center;margin-top:12px}@media screen{body{padding:18px;max-width:900px;margin:auto}.actions{display:flex;justify-content:flex-end;margin-bottom:12px}.actions button{padding:9px 16px;background:#1c2333;color:white;border:0;border-radius:6px;font-weight:bold}}@media print{.actions{display:none}tr{break-inside:avoid}}</style></head><body><div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div><header class="head"><h1>MERCURY PCMS</h1><div class="sub">Daily Court Cause List - Chamber Diary</div><div class="date">'+esc(label)+'</div></header><div class="meta"><span>Advocate: __________________________</span><span>Total matters: <b>'+list.length+'</b></span></div>'+(list.length?'<table><thead><tr><th class="num">S.No.</th><th style="width:27%">Case / Parties</th><th style="width:20%">Court</th><th style="width:17%">Purpose</th><th style="width:18%">CNR</th><th class="blank">Done</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No hearings are recorded in Mercury for this date.</div>')+'<div class="notes">Daily notes / next steps</div><div class="notes-lines"></div><footer class="foot"><span>Generated from your private Mercury case register</span><span>'+esc(date)+'</span></footer><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>');
+      popup.document.close();
+    };
     const allMonthDates=Array.from({length:42},(_,i)=>{const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);return d;});
     return <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12,flex:"1 1 auto",minHeight:0,minWidth:0,height:"100%",overflowY:"auto",overflowX:"hidden",paddingBottom:18}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,fontWeight:750,margin:"0 0 4px"}}>Hearing Calendar</h2><div style={{fontSize:11,color:"var(--silver)"}}>Your court diary · {calendarCases.length} hearings in the displayed calendar range</div></div>
+        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:21,fontWeight:750,margin:"0 0 4px"}}>Hearing Calendar</h2><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn sm v="gold" onClick={()=>printCauseList(TODAY)}>Today · Print / PDF</Btn><Btn sm v="ghost" onClick={()=>{const d=new Date(TODAY+"T12:00:00");d.setDate(d.getDate()+1);printCauseList(dateKey(d));}}>Tomorrow · Print / PDF</Btn></div><div style={{fontSize:11,color:"var(--silver)"}}>Your court diary · {calendarCases.length} hearings in the displayed calendar range</div></div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn sm v="teal" onClick={()=>window.open("https://ecourtsindia.com/causelist","_blank","noopener,noreferrer")}>📋 Live Cause List</Btn><Btn sm v="ghost" onClick={()=>window.open("https://districts.ecourts.gov.in/haryana/karnal","_blank","noopener,noreferrer")}>Karnal eCourts ↗</Btn></div>
       </div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 12px",background:"white",border:"1px solid var(--border)",borderRadius:11,boxShadow:"0 2px 8px rgba(15,23,42,.035)"}}>
