@@ -38,6 +38,12 @@ assert(html.includes('user_id:authUser.id,case_status:row.ecourts_status||"Pendi
 const migration="supabase/migrations/20261123093353_set_authenticated_user_id_defaults.sql";
 assert(fs.existsSync(migration),"Authenticated owner defaults migration missing");
 assert(fs.readFileSync(migration,"utf8").includes("default auth.uid()"),"Owner default migration does not use auth.uid()");
+const leastPrivilegeMigration="supabase/migrations/20261124094000_mercury_least_privilege_public_api.sql";
+assert(fs.existsSync(leastPrivilegeMigration),"Least-privilege public API migration missing");
+const leastPrivilegeSql=fs.readFileSync(leastPrivilegeMigration,"utf8");
+assert(leastPrivilegeSql.includes("REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, PUBLIC"),"Anonymous table access must be revoked");
+assert(leastPrivilegeSql.includes("REVOKE TRUNCATE, REFERENCES, TRIGGER"),"RLS-bypassing table privileges must be revoked");
+assert(leastPrivilegeSql.includes("GRANT SELECT ON TABLE"),"Authenticated read-only office views must retain SELECT");
 const realtimeMigration="supabase/migrations/20261123100301_enable_mercury_realtime_sync.sql";
 assert(fs.existsSync(realtimeMigration),"Realtime publication migration missing");
 assert(fs.readFileSync(realtimeMigration,"utf8").includes("alter publication supabase_realtime add table public.cases"),"Realtime migration does not publish case changes");
