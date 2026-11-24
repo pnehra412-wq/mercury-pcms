@@ -22,6 +22,8 @@ assert(fs.readFileSync("sw.js","utf8").includes('const CACHE="mercury-pcms-shell
 assert(html.includes("date_last_verified_at")&&html.includes("date_verification_source"),"Hearing date verification metadata missing");
 assert(html.includes("const markDateVerified=async()=>"),"Manual hearing-date verification action missing");
 assert(html.includes("hearing_date_verified"),"Hearing-date verification audit event missing");
+assert(html.includes('return !Number.isFinite(checkedAt)||checkedAt<hearingEnd;'),"Verified past hearings must leave the review queue");
+assert(html.includes('date_verification_source:"manual"'),"Manual date updates must record verification source");
 assert(html.includes("Save & verify"),"Manual next-date updates must be marked verified");
 for(const marker of ["const authClient = window.supabase.createClient","signInWithPassword","authClient.storage.from(\"case-files\").upload","functions/v1/capture-mobile-order","label:\"Tasks\"","label:\"Fees\"","todayVersion","navigator.serviceWorker.register(\"./sw.js\",{updateViaCache:\"none\"})","resolution=ignore-duplicates","documentIdMap","will NOT be overwritten or deleted","window.JSZip","JSZip.loadAsync(file)","storage-manifest.json","storage/case-files/","authClient.channel(\"mercury-live-sync-\"","authClient.channel(\"mercury-case-detail-\"","postgres_changes","Live sync","normaliseECourtsRecord","handleECourtsFile","applyECourtsImport","ecourts_note","eCourts import preview","Manual data protection","ecourts_last_synced_at"])assert(html.includes(marker),"Expected feature missing: "+marker);
 assert(!html.includes("file_data:e.target.result"),"New documents must not be stored as inline base64");
