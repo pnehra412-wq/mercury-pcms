@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-24-hearing-date-review-v16"/>
+<meta name="mercury-build" content="2026-11-24-auto-update-v17"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -2224,6 +2224,24 @@ function MercuryPCMS() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MercuryPCMS));
 </script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Mercury service worker registration failed",error)));}</script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load",async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"});
+      reg.update().catch(error=>console.warn("Mercury update check failed",error));
+      let reloading=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{
+        if(reloading)return;
+        reloading=true;
+        window.location.reload();
+      });
+      document.addEventListener("visibilitychange",()=>{
+        if(document.visibilityState==="visible")reg.update().catch(()=>{});
+      });
+    }catch(error){console.warn("Mercury service worker registration failed",error);}
+  });
+}
+</script>
 </body>
 </html>
