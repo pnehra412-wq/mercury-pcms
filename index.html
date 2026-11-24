@@ -6,7 +6,7 @@
 <title>Mercury PCMS — Adv. Pardeep</title>
 <meta name="description" content="Practice & Case Management System — Adv. Pardeep, Haryana"/>
 <meta name="theme-color" content="#0d1117"/>
-<meta name="mercury-build" content="2026-11-24-hearing-verification-v20"/>
+<meta name="mercury-build" content="2026-11-24-android-reminders-v21"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
@@ -421,33 +421,51 @@ function MercuryPCMS() {
     finally{setEcourtsBusy(false);}
   };
 
-  // Browser notifications repeat every 30 minutes while Mercury is open.
-  // Task reminders are individual; hearing reminders are batched once per local day.
+  // Android PWAs should display notifications through ServiceWorkerRegistration.showNotification.
+  const showMercuryNotification = async (title, options={}) => {
+    if (!("Notification" in window) || window.Notification.permission !== "granted") return false;
+    try {
+      if ("serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && typeof reg.showNotification === "function") {
+          await reg.showNotification(title, options);
+          return true;
+        }
+      }
+      // Desktop fallback only; Android browsers generally require showNotification().
+      if (typeof window.Notification === "function") {
+        new window.Notification(title, options);
+        return true;
+      }
+    } catch(error) { console.warn("Mercury notification delivery failed", error); }
+    return false;
+  };
+
+  // Task and hearing reminders are checked every 30 minutes while Mercury is open.
   useEffect(() => {
-    const checkDueItems = () => {
-      if (!("Notification" in window) || Notification.permission !== "granted") return;
-      tasks.filter(t => !t.done && t.due && t.due <= TODAY).forEach(t => {
+    const checkDueItems = async () => {
+      if (!("Notification" in window) || window.Notification.permission !== "granted") return;
+      for (const t of tasks.filter(t => !t.done && t.due && t.due <= TODAY)) {
         const key = "mercury-reminder-task-" + (t.id || t.title) + "-" + TODAY;
         try {
-          if (localStorage.getItem(key)) return;
-          new Notification("Mercury task due", {body:(t.title || "Untitled task") + " · " + t.due});
-          localStorage.setItem(key,"1");
+          if (localStorage.getItem(key)) continue;
+          if (await showMercuryNotification("Mercury task due", {body:(t.title || "Untitled task") + " · " + t.due})) localStorage.setItem(key,"1");
         } catch(e) {}
-      });
-      // Durable reminders are synced through Supabase and delivered when this
-      // signed-in workspace is open. Keep operating-system text confidential.
-      reminders.filter(r=>r.status==="pending"&&(r.channel==="in_app"||!r.channel)&&new Date(r.next_attempt_at||r.reminder_at).getTime()<=Date.now()).forEach(async r=>{
+      }
+      // Durable reminders are synced through Supabase. Keep lock-screen text confidential.
+      for (const r of reminders.filter(r=>r.status==="pending"&&(r.channel==="in_app"||!r.channel)&&new Date(r.next_attempt_at||r.reminder_at).getTime()<=Date.now())) {
         const key="mercury-durable-reminder-"+r.id;
         try{
-          if(localStorage.getItem(key))return;
-          new Notification("Mercury scheduled reminder",{body:"A scheduled case reminder is due. Open Mercury to review the relevant case.",tag:key});
+          if(localStorage.getItem(key))continue;
+          const shown=await showMercuryNotification("Mercury scheduled reminder",{body:"A scheduled case reminder is due. Open Mercury to review the relevant case.",tag:key});
+          if(!shown)continue;
           localStorage.setItem(key,"1");
           const delivered=await sb.from("hearing_reminders").update({status:"sent",delivered_at:new Date().toISOString(),attempts:(r.attempts||0)+1,last_error:null},{id:r.id});
           if(Array.isArray(delivered)&&delivered.length)setReminders(list=>list.map(x=>x.id===r.id?{...x,...delivered[0]}:x));
         }catch(error){
           try{localStorage.removeItem(key);await sb.from("hearing_reminders").update({attempts:(r.attempts||0)+1,last_error:String(error?.message||error).slice(0,500),next_attempt_at:new Date(Date.now()+15*60*1000).toISOString()},{id:r.id});}catch(_){}
         }
-      });
+      }
       const upcoming = cases
         .filter(c => {
           const d = daysUntil(c.date_next_list);
@@ -464,12 +482,10 @@ function MercuryPCMS() {
           if (tomorrowCount) details.push(tomorrowCount + " tomorrow");
           const laterCount = upcoming.length - todayCount - tomorrowCount;
           if (laterCount) details.push(laterCount + " in 2–3 days");
-          // Keep client and case names out of operating-system notifications for confidentiality.
-          new Notification("Mercury cause-list reminder", {
+          if (await showMercuryNotification("Mercury cause-list reminder", {
             body: upcoming.length + " hearing(s) coming up: " + details.join(", ") + ". Open Mercury to review the cause list.",
             tag: "mercury-hearings-" + TODAY
-          });
-          localStorage.setItem(hearingKey,"1");
+          })) localStorage.setItem(hearingKey,"1");
         }
       } catch(e) {}
     };
@@ -1807,7 +1823,7 @@ function MercuryPCMS() {
       <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
         <div style={{display:"flex",alignItems:"center"}}>
           <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Tasks & Reminders</h2>
-          <div style={{marginLeft:"auto",display:"flex",gap:7,flexWrap:"wrap"}}><Btn sm v="ghost" onClick={()=>{const rows=filteredTasks.map(t=>{const c=cases.find(x=>x.cino===t.cino);return {"Task":t.title||"","Status":t.done?"Completed":"Pending","Due Date":t.due||"","Priority":t.priority||"Normal","CNR":t.cino||"","Case":c?partyLabel(c):""};});if(!downloadCsv("mercury-tasks.csv",rows))notify("No tasks to export","var(--amber)");}}><Ic n="save" size={12}/>Export CSV / Excel</Btn><Btn sm v="ghost" onClick={async()=>{if(!("Notification" in window)){notify("This browser does not support notifications","var(--amber)");return;}const permission=await Notification.requestPermission();if(permission!=="granted"){notify("Browser notifications were not enabled","var(--amber)");return;}const due=tasks.filter(t=>!t.done&&t.due&&t.due<=TODAY);if(!due.length)new Notification("Mercury PCMS",{body:"No overdue or due-today tasks. Reminders are enabled while this app is open."});due.slice(0,5).forEach(t=>new Notification("Mercury task due",{body:(t.title||"Untitled task")+" · "+(t.due||"No date")}));notify("Browser reminders enabled while Mercury is open","var(--teal)");}}><Ic n="bell" size={12}/>Enable reminders</Btn><Btn onClick={()=>setAddTask("__free__")}><Ic n="plus" size={14}/>New Task</Btn></div>
+          <div style={{marginLeft:"auto",display:"flex",gap:7,flexWrap:"wrap"}}><Btn sm v="ghost" onClick={()=>{const rows=filteredTasks.map(t=>{const c=cases.find(x=>x.cino===t.cino);return {"Task":t.title||"","Status":t.done?"Completed":"Pending","Due Date":t.due||"","Priority":t.priority||"Normal","CNR":t.cino||"","Case":c?partyLabel(c):""};});if(!downloadCsv("mercury-tasks.csv",rows))notify("No tasks to export","var(--amber)");}}><Ic n="save" size={12}/>Export CSV / Excel</Btn><Btn sm v="ghost" onClick={async()=>{try{if(!window.isSecureContext){notify("Open Mercury using its HTTPS app link to enable notifications.","var(--amber)");return;}if(!("serviceWorker" in navigator)){notify("This browser cannot run the Mercury notification service. Open the app in Chrome or Samsung Internet, not inside another app.","var(--amber)");return;}if(!("Notification" in window)||typeof window.Notification.requestPermission!=="function"){notify("This browser view blocks notifications. Open Mercury in Chrome or Samsung Internet, then allow notifications for this site.","var(--amber)");return;}const permission=await window.Notification.requestPermission();if(permission!=="granted"){notify(permission==="denied"?"Notifications are blocked for Mercury. Allow them in your browser site settings.":"Notification permission was not granted. Try again and choose Allow.","var(--amber)");return;}const reg=await navigator.serviceWorker.ready;if(!reg||typeof reg.showNotification!=="function"){notify("The browser granted permission but its notification service is unavailable. Close and reopen the installed Mercury app.","var(--amber)");return;}await reg.showNotification("Mercury PCMS",{body:"Browser reminders are enabled. Mercury will notify you while the app is active.",tag:"mercury-reminders-enabled"});notify("Notifications enabled on this device. Keep Mercury open for scheduled in-app reminders.","var(--teal)");}catch(error){console.error("Mercury notification setup failed",error);notify("Could not enable notifications: "+(error?.message||"browser error"),"var(--amber)");}}}><Ic n="bell" size={12}/>Enable reminders</Btn><Btn onClick={()=>setAddTask("__free__")}><Ic n="plus" size={14}/>New Task</Btn></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"minmax(180px,1fr) minmax(160px,240px) auto",gap:8,alignItems:"end"}}>
           <div><Lbl c="Search tasks"/><input value={taskSearch} onChange={e=>setTaskSearch(e.target.value)} placeholder="Task, party name, CNR…" style={iS}/></div>
