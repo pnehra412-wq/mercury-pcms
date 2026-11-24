@@ -605,6 +605,68 @@ function MercuryPCMS() {
           </div>
         </div>
 
+        {/* Daily action desk: task deadlines and hearing preparation */}
+        <section aria-label="Daily action desk" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,340px),1fr))",gap:10}}>
+          <Card p={0} style={{overflow:"hidden"}}>
+            <div style={{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8}}>
+              <Ic n="task" size={14} color="var(--rose)"/>
+              <div style={{fontWeight:750,fontSize:12.5}}>Action queue</div>
+              <Bdg label={pendTasks.length+" pending"} color={pendTasks.some(t=>!t.done&&t.due&&t.due<TODAY)?"#c0392b":"#1a8a7a"}/>
+              <Btn sm v="ghost" style={{marginLeft:"auto"}} onClick={()=>setView("tasks")}>All tasks</Btn>
+              <Btn sm onClick={()=>setAddTask("__free__")}><Ic n="plus" size={11}/>Add</Btn>
+            </div>
+            <div style={{maxHeight:260,overflowY:"auto"}}>
+              {pendTasks.length===0&&<div style={{padding:18,textAlign:"center",fontSize:11.5,color:"var(--silver)"}}>No pending tasks recorded.</div>}
+              {[...pendTasks].sort((a,b)=>{
+                const ad=a.due||"9999-99-99",bd=b.due||"9999-99-99";
+                const ap=a.due&&a.due<TODAY?0:a.due===TODAY?1:2,bp=b.due&&b.due<TODAY?0:b.due===TODAY?1:2;
+                return ap-bp||ad.localeCompare(bd);
+              }).slice(0,7).map(t=>{
+                const linked=cases.find(c=>c.cino===t.cino);
+                const overdueTask=!!(t.due&&t.due<TODAY);
+                const dueToday=t.due===TODAY;
+                return <div key={t.id} style={{padding:"9px 13px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:9}}>
+                  <button type="button" aria-label={"Mark task complete: "+(t.title||"Task")} onClick={()=>toggleTask(tk=>tk.id===t.id?tk:t,true)} style={{width:18,height:18,flexShrink:0,border:"1px solid #aab5c2",borderRadius:5,background:"white",cursor:"pointer"}}/>
+                  <button type="button" onClick={()=>setView("tasks")} style={{flex:1,minWidth:0,border:0,background:"transparent",textAlign:"left",cursor:"pointer",padding:0}}>
+                    <div style={{fontSize:11.5,fontWeight:700,color:"var(--ink)",overflowWrap:"anywhere"}}>{t.title||"Untitled task"}</div>
+                    <div style={{fontSize:9.5,color:"var(--silver)",marginTop:3}}>{linked?partyLabel(linked):t.cino||"Workspace task"}{t.due?" · Due "+fmtShort(t.due):" · No due date"}</div>
+                  </button>
+                  <Bdg label={overdueTask?"OVERDUE":dueToday?"TODAY":t.priority||"Normal"} color={overdueTask?"#c0392b":dueToday?"#d4891a":"#687588"}/>
+                </div>;
+              })}
+            </div>
+          </Card>
+          <Card p={0} style={{overflow:"hidden"}}>
+            <div style={{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8}}>
+              <Ic n="scale" size={14} color="var(--gold)"/>
+              <div style={{fontWeight:750,fontSize:12.5}}>Prepare for next hearings</div>
+              <Bdg label={next7.length+" in 7 days"} color="#1a6aa8"/>
+              <Btn sm v="ghost" style={{marginLeft:"auto"}} onClick={()=>setView("calendar")}>Cause list</Btn>
+            </div>
+            <div style={{maxHeight:260,overflowY:"auto"}}>
+              {next7.length===0&&<div style={{padding:18,textAlign:"center",fontSize:11.5,color:"var(--silver)"}}>No upcoming hearings in the next seven days.</div>}
+              {[...next7].sort((a,b)=>(a.date_next_list||"").localeCompare(b.date_next_list||"")).slice(0,7).map(c=>{
+                const latest=[...history].filter(h=>h.cino===c.cino).sort((a,b)=>(b.hearing_date||"").localeCompare(a.hearing_date||""))[0];
+                const hasOrder=!!(c.latest_order_crux||c.latest_order_action);
+                const hasProceeding=!!(latest&&(latest.outcome||latest.notes));
+                return <button type="button" key={c.cino} onClick={()=>openCase(c)} style={{width:"100%",padding:"10px 13px",border:0,borderBottom:"1px solid var(--border)",background:"white",textAlign:"left",cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:10,fontWeight:800,color:urgency(daysUntil(c.date_next_list)).color,minWidth:43}}>{urgency(daysUntil(c.date_next_list)).label}</span>
+                    <span style={{fontSize:11.5,fontWeight:750,color:"var(--ink)",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{partyLabel(c)}</span>
+                    <Ic n="chevron-right" size={13} color="var(--silver)"/>
+                  </div>
+                  <div style={{fontSize:9.5,color:"var(--silver)",margin:"3px 0 5px 51px"}}>{fmtShort(c.date_next_list)} · {c.court_no_desg_name||"Court not recorded"} · {c.purpose_name||"Purpose not recorded"}</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginLeft:51}}>
+                    <Bdg label={hasOrder?"Latest order available":"Order summary missing"} color={hasOrder?"#1a8a7a":"#d4891a"}/>
+                    <Bdg label={hasProceeding?"Last proceedings recorded":"Diary entry to review"} color={hasProceeding?"#1a8a7a":"#687588"}/>
+                  </div>
+                  {hasOrder&&<div style={{fontSize:9.5,color:"var(--ink3)",margin:"5px 0 0 51px",lineHeight:1.45}}>{String(c.latest_order_crux||c.latest_order_action).slice(0,190)}{String(c.latest_order_crux||c.latest_order_action).length>190?"…":""}</div>}
+                </button>;
+              })}
+            </div>
+          </Card>
+        </section>
+
         {/* Fee summary */}
         <div className="mercury-fee-summary" style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>
           {[["Total Agreed","var(--ink3)",fees.reduce((s,f)=>s+(parseFloat(f.amount_agreed)||0),0)],["Received","var(--teal)",totalFees],["Pending","var(--rose)",Math.max(0,pendingFee)]].map(([l,c,v])=>(
