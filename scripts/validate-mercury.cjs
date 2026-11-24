@@ -46,4 +46,8 @@ assert(html.includes("Daily action desk"),"Daily action desk missing");
 assert(html.includes("Action queue"),"Dashboard action queue missing");
 assert(html.includes("Prepare for next hearings"),"Hearing preparation panel missing");
 assert(html.includes("toggleTask(t,true)"),"Task completion handler missing");
+assert(html.includes('case_status=eq.Needs%20Verification&order=date_next_list.asc'),"Separate non-disposed verification queue query missing");
+assert(html.includes('caseQuickFilter==="needsVerification"?verificationCases:cases'),"Verification queue must remain separate from operational cases");
+assert(html.includes('["needsVerification","Needs verification ("+verificationCases.length+")"]'),"Verification queue must be discoverable from Case Registry");
+assert(html.includes("setVerificationCases([])"),"Verification queue must clear on sign-out");
 console.log("Mercury main-branch validation passed: JSX, Auth, private Storage uploads, PWA files, and migration.");
