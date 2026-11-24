@@ -261,6 +261,7 @@ const Spin = () => <div style={{width:16,height:16,border:"2px solid var(--borde
 // ─── MAIN APP ─────────────────────────────────────────────────────────────
 function MercuryPCMS() {
   const [cases, setCases]     = useState([]);
+  const [verificationCases,setVerificationCases] = useState([]);
   const [tasks, setTasks]     = useState([]);
   const [fees, setFees]       = useState([]);
   const [history, setHistory] = useState([]);
@@ -292,9 +293,9 @@ function MercuryPCMS() {
   const loadAll = async (quiet=false) => {
     if(!quiet)setLoading(true);
     try {
-      const [c,t,f,h,r] = await Promise.all([
-        // Cases are loaded through a server-side PostgREST filter so Decided
-        // matters are never downloaded into the app at all.
+      const [c,v,t,f,h,r] = await Promise.all([
+        // Operational cases and unverified imports are fetched separately.
+        // Disposed/decided matters are never loaded into either workspace list.
         (async()=>{
           const qs="select=*&case_status=eq.Pending&order=date_next_list.asc";
           const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
@@ -302,6 +303,15 @@ function MercuryPCMS() {
           });
           const j=await r.json();
           if(!r.ok) throw new Error(j?.message||"Could not load active cases");
+          return Array.isArray(j)?j:[];
+        })(),
+        (async()=>{
+          const qs="select=*&case_status=eq.Needs%20Verification&order=date_next_list.asc";
+          const r=await fetch(SB_URL+"/rest/v1/cases?"+qs,{
+            headers:{apikey:SB_KEY,Authorization:"Bearer "+((await authClient.auth.getSession()).data.session.access_token),Accept:"application/json"}
+          });
+          const j=await r.json();
+          if(!r.ok) throw new Error(j?.message||"Could not read verification queue");
           return Array.isArray(j)?j:[];
         })(),
         sb.from("tasks").select("*"),
@@ -318,6 +328,7 @@ function MercuryPCMS() {
       } else {
         if(!quiet)notify("Could not read active cases — check Supabase","var(--rose)");
       }
+      if(Array.isArray(v)) setVerificationCases(v);
       if(Array.isArray(t)) setTasks(t);
       if(Array.isArray(f)) setFees(f);
       if(Array.isArray(h)) setHistory(h);
@@ -329,7 +340,7 @@ function MercuryPCMS() {
   };
 
   useEffect(()=>{let active=true; authClient.auth.getSession().then(({data:{session}})=>{if(active){setAuthUser(session?session.user:null);setAuthReady(true);}}).catch(()=>{if(active)setAuthReady(true);});
-   const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setTasks([]);setFees([]);setHistory([]);setReminders([]);}});
+   const listener=authClient.auth.onAuthStateChange((_event,session)=>{setAuthUser(session?session.user:null);setAuthReady(true);if(!session){setCases([]);setVerificationCases([]);setTasks([]);setFees([]);setHistory([]);setReminders([]);}});
    return ()=>{active=false;listener.data.subscription.unsubscribe();};},[]);
   useEffect(()=>{if(authUser)loadAll();},[authUser&&authUser.id]);
   useEffect(()=>{
@@ -453,8 +464,8 @@ function MercuryPCMS() {
     return () => clearInterval(timer);
   }, [tasks, cases, todayVersion]);
 
-  const allDists  = useMemo(() => [...new Set(cases.map(c=>c.district_name))].sort(), [cases]);
-  const allTypes  = useMemo(() => [...new Set(cases.map(c=>c.type_name))].sort(), [cases]);
+  const allDists  = useMemo(() => [...new Set([...cases,...verificationCases].map(c=>c.district_name).filter(Boolean))].sort(), [cases,verificationCases]);
+  const allTypes  = useMemo(() => [...new Set([...cases,...verificationCases].map(c=>c.type_name).filter(Boolean))].sort(), [cases,verificationCases]);
   const todayCases = useMemo(() => cases.filter(c=>daysUntil(c.date_next_list)===0), [cases]);
   const next7      = useMemo(() => cases.filter(c=>{const d=daysUntil(c.date_next_list);return d>=0&&d<=7;}), [cases]);
   const pastDateReview = useMemo(() => cases.filter(c=>c.date_next_list && daysUntil(c.date_next_list)<0), [cases]);
@@ -462,7 +473,7 @@ function MercuryPCMS() {
   const pendTasks  = useMemo(() => tasks.filter(t=>!t.done), [tasks]);
 
   const filtered = useMemo(() => {
-    let out = [...cases];
+    let out = [...(caseQuickFilter==="needsVerification"?verificationCases:cases)];
     if(searchQ){const q=searchQ.trim().toLowerCase();if(q)out=out.filter(c=>[c.cino,c.petparty_name,c.resparty_name,c.note,c.notes_adv,c.purpose_name,c.type_name,c.court_no_desg_name,c.district_name,c.establishment_name].some(v=>String(v??"").toLowerCase().includes(q)));}
     if(fDist!=="All") out=out.filter(c=>c.district_name===fDist);
     if(fType!=="All") out=out.filter(c=>c.type_name===fType);
@@ -473,7 +484,7 @@ function MercuryPCMS() {
     if(sortBy==="date") out.sort((a,b)=>new Date(a.date_next_list)-new Date(b.date_next_list));
     if(sortBy==="type") out.sort((a,b)=>a.type_name.localeCompare(b.type_name));
     return out;
-  }, [cases,searchQ,fDist,fType,sortBy,caseQuickFilter]);
+  }, [cases,verificationCases,searchQ,fDist,fType,sortBy,caseQuickFilter]);
 
   const openCase = c => { setDetail(c); setView("cases"); };
   const openPastDateReview = () => { setSearchQ(""); setFDist("All"); setFType("All"); setSortBy("date"); setCaseQuickFilter("pastDateReview"); setView("cases"); };
@@ -693,7 +704,7 @@ function MercuryPCMS() {
     <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:10,height:"100%"}}>
       <input ref={ecourtsFileRef} type="file" accept=".txt,.json,application/json,text/plain" style={{display:"none"}} onChange={handleECourtsFile}/>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="pastDateReview"?"Past Date Review":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
+        <div><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{caseQuickFilter==="pastDateReview"?"Past Date Review":caseQuickFilter==="needsVerification"?"Needs Verification":"Case Registry"} <span style={{fontSize:12,fontWeight:400,color:"var(--silver)"}}>{filtered.length}/{caseQuickFilter==="needsVerification"?verificationCases.length:cases.length}</span></h2><div style={{fontSize:10,color:"var(--silver)",marginTop:3}}>List, board and calendar views use the same Mercury case records.</div></div>
         <div style={{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}}>
           <Btn sm v="gold" onClick={()=>setView("cases")}><Ic n="list" size={12}/>List</Btn>
           <Btn sm v="ghost" onClick={()=>setView("board")}><Ic n="columns" size={12}/>Board</Btn>
@@ -705,7 +716,7 @@ function MercuryPCMS() {
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",background:"var(--white)",borderRadius:8,padding:"8px 10px",border:"1px solid var(--border)"}}>
         <span style={{fontSize:10,fontWeight:800,color:"var(--silver)",marginRight:2}}>QUICK VIEWS</span>
-        {[["all","All active"],["today","Today"],["pastDateReview","Past date — verify"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
+        {[["all","All active"],["needsVerification","Needs verification ("+verificationCases.length+")"],["today","Today"],["pastDateReview","Past date — verify"],["next7","Next 7 days"],["missing","No next date"]].map(([key,label])=><button key={key} onClick={()=>setCaseQuickFilter(key)} style={{border:"1px solid "+(caseQuickFilter===key?"#c9a84c":"var(--border)"),background:caseQuickFilter===key?"#f7f0dc":"white",color:caseQuickFilter===key?"#715a20":"var(--ink3)",borderRadius:7,padding:"6px 9px",fontSize:10.5,fontWeight:caseQuickFilter===key?800:600,cursor:"pointer"}}>{label}</button>)}
         <span style={{fontSize:10,color:"var(--silver)",marginLeft:"auto"}}>{filtered.length} case(s)</span>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"var(--white)",borderRadius:8,padding:"8px 12px",border:"1px solid var(--border)"}}>
