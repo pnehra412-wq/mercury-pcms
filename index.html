@@ -434,6 +434,20 @@ function MercuryPCMS() {
           localStorage.setItem(key,"1");
         } catch(e) {}
       });
+      // Durable reminders are synced through Supabase and delivered when this
+      // signed-in workspace is open. Keep operating-system text confidential.
+      reminders.filter(r=>r.status==="pending"&&(r.channel==="in_app"||!r.channel)&&new Date(r.next_attempt_at||r.reminder_at).getTime()<=Date.now()).forEach(async r=>{
+        const key="mercury-durable-reminder-"+r.id;
+        try{
+          if(localStorage.getItem(key))return;
+          new Notification("Mercury scheduled reminder",{body:"A scheduled case reminder is due. Open Mercury to review the relevant case.",tag:key});
+          localStorage.setItem(key,"1");
+          const delivered=await sb.from("hearing_reminders").update({status:"sent",delivered_at:new Date().toISOString(),attempts:(r.attempts||0)+1,last_error:null},{id:r.id});
+          if(Array.isArray(delivered)&&delivered.length)setReminders(list=>list.map(x=>x.id===r.id?{...x,...delivered[0]}:x));
+        }catch(error){
+          try{localStorage.removeItem(key);await sb.from("hearing_reminders").update({attempts:(r.attempts||0)+1,last_error:String(error?.message||error).slice(0,500),next_attempt_at:new Date(Date.now()+15*60*1000).toISOString()},{id:r.id});}catch(_){}
+        }
+      });
       const upcoming = cases
         .filter(c => {
           const d = daysUntil(c.date_next_list);
@@ -462,7 +476,7 @@ function MercuryPCMS() {
     checkDueItems();
     const timer=setInterval(checkDueItems, 30*60*1000);
     return () => clearInterval(timer);
-  }, [tasks, cases, todayVersion]);
+  }, [tasks, cases, reminders, todayVersion]);
 
   const allDists  = useMemo(() => [...new Set([...cases,...verificationCases].map(c=>c.district_name).filter(Boolean))].sort(), [cases,verificationCases]);
   const allTypes  = useMemo(() => [...new Set([...cases,...verificationCases].map(c=>c.type_name).filter(Boolean))].sort(), [cases,verificationCases]);
