@@ -468,7 +468,7 @@ function MercuryPCMS() {
   const allTypes  = useMemo(() => [...new Set([...cases,...verificationCases].map(c=>c.type_name).filter(Boolean))].sort(), [cases,verificationCases]);
   const todayCases = useMemo(() => cases.filter(c=>daysUntil(c.date_next_list)===0), [cases]);
   const next7      = useMemo(() => cases.filter(c=>{const d=daysUntil(c.date_next_list);return d>=0&&d<=7;}), [cases]);
-  const pastDateReview = useMemo(() => cases.filter(c=>c.date_next_list && daysUntil(c.date_next_list)<0), [cases]);
+  const pastDateReview = useMemo(() => cases.filter(c=>{if(!c.date_next_list||daysUntil(c.date_next_list)>=0)return false;if(!c.date_last_verified_at)return true;const checkedAt=new Date(c.date_last_verified_at).getTime();const hearingEnd=new Date(c.date_next_list+"T23:59:59").getTime();return !Number.isFinite(checkedAt)||checkedAt<hearingEnd;}), [cases]);
   const missingDate = useMemo(() => cases.filter(c=>!c.date_next_list), [cases]);
   const pendTasks  = useMemo(() => tasks.filter(t=>!t.done), [tasks]);
 
@@ -478,7 +478,7 @@ function MercuryPCMS() {
     if(fDist!=="All") out=out.filter(c=>c.district_name===fDist);
     if(fType!=="All") out=out.filter(c=>c.type_name===fType);
     if(caseQuickFilter==="today") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)===0);
-    if(caseQuickFilter==="pastDateReview") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)<0);
+    if(caseQuickFilter==="pastDateReview") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)<0&&(!c.date_last_verified_at||new Date(c.date_last_verified_at).getTime()<new Date(c.date_next_list+"T23:59:59").getTime()));
     if(caseQuickFilter==="next7") out=out.filter(c=>c.date_next_list&&daysUntil(c.date_next_list)>=0&&daysUntil(c.date_next_list)<=7);
     if(caseQuickFilter==="missing") out=out.filter(c=>!c.date_next_list);
     if(sortBy==="date") out.sort((a,b)=>new Date(a.date_next_list)-new Date(b.date_next_list));
