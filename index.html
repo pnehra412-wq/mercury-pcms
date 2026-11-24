@@ -626,7 +626,7 @@ function MercuryPCMS() {
                 const overdueTask=!!(t.due&&t.due<TODAY);
                 const dueToday=t.due===TODAY;
                 return <div key={t.id} style={{padding:"9px 13px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:9}}>
-                  <button type="button" aria-label={"Mark task complete: "+(t.title||"Task")} onClick={()=>toggleTask(tk=>tk.id===t.id?tk:t,true)} style={{width:18,height:18,flexShrink:0,border:"1px solid #aab5c2",borderRadius:5,background:"white",cursor:"pointer"}}/>
+                  <button type="button" aria-label={"Mark task complete: "+(t.title||"Task")} onClick={()=>toggleTask(t,true)} style={{width:18,height:18,flexShrink:0,border:"1px solid #aab5c2",borderRadius:5,background:"white",cursor:"pointer"}}/>
                   <button type="button" onClick={()=>setView("tasks")} style={{flex:1,minWidth:0,border:0,background:"transparent",textAlign:"left",cursor:"pointer",padding:0}}>
                     <div style={{fontSize:11.5,fontWeight:700,color:"var(--ink)",overflowWrap:"anywhere"}}>{t.title||"Untitled task"}</div>
                     <div style={{fontSize:9.5,color:"var(--silver)",marginTop:3}}>{linked?partyLabel(linked):t.cino||"Workspace task"}{t.due?" · Due "+fmtShort(t.due):" · No due date"}</div>
