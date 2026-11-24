@@ -1262,7 +1262,7 @@ function MercuryPCMS() {
                     <div><Lbl c="Verification note (optional)"/><input value={verificationNote} onChange={e=>setVerificationNote(e.target.value)} placeholder="e.g. Checked against latest order" style={iS}/></div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:8}}>
-                    <Btn sm v="ghost" onClick={markDateVerified} disabled={verificationSaving||!c.date_next_list}>{verificationSaving?<Spin/>:<Ic n="check-circle" size={12}/>}Mark current date checked</Btn>
+                    <Btn sm v="ghost" onClick={markDateVerified} style={{opacity:verificationSaving||!c.date_next_list?0.55:1}}>{verificationSaving?<Spin/>:<Ic n="check" size={12}/>}Mark current date checked</Btn>
                     <span style={{fontSize:10,color:"var(--silver)"}}>{c.date_last_verified_at?"Last checked "+new Date(c.date_last_verified_at).toLocaleString("en-IN")+" · "+(c.date_verification_source||"source not recorded"):"Not yet verified"}</span>
                   </div>
                 </div>
