@@ -62,3 +62,13 @@ The cases table now has additive eCourts metadata columns for case/registration/
 
 ## Edge Function source control
 The deployed mercury-app, mercury-capture, mercury-office, capture-mobile-order, capture-shared-court-order, publish-mercury-web, case-ai-chats and mercury-notion-sync sources are now versioned under supabase/functions. supabase/config.toml records which public page handlers intentionally do not require a gateway JWT and which data-changing endpoints must require one. The app-serving and publish functions now include the SVG PWA icon in their allowlists and deployment file set. No service-role key or Notion token is committed.
+
+
+## Mercury v16 — hearing-date review reliability (2026-11-24)
+
+- Changed past next-hearing dates from the misleading case-level “Overdue” category to “Past date — verify” across the dashboard, case list filters, and case board. Genuine overdue task deadlines remain separately labelled as overdue.
+- No database schema or row changes were made for this release.
+- Refreshed the PWA shell cache to v2 and deployed the `mercury-app` Edge Function as version 16, serving the main-branch v16 application.
+- Post-deploy database verification: 158 cases, 1 task, 2 hearing-history rows, 7 documents, 5 document-analysis rows, 0 case-AI chats, 54 court-watch rows, and 0 fee rows; counts match the pre-release check.
+- Static source checks confirm the new review filter is present, the old case-level overdue filter is absent, and task overdue indicators remain intact. GitHub reported no workflow runs/status checks for this commit. Live browser sign-in and Windows/Android interaction smoke tests could not be executed from this session and remain to be verified on the user's devices.
+- Existing Supabase Auth advisory remains: leaked-password protection is disabled and must be enabled in the Supabase Auth dashboard.
